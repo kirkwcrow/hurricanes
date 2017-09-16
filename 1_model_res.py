@@ -155,7 +155,7 @@ hf_raw = pd.read_csv(wk_dir+filename,index_col=0,parse_dates=['date'])
 hf=hf_raw[(hf_raw.vmax != -9999) & (hf_raw['vmax_'+competitor] != -9999)]
 hf=hf[hf.lead_time.isin(lead_times)]
 hf=kfold_partition(hf,'storm_id',10)
-
+ 
 test = fit_SLR_hwrf(hf,response,1)
 #
 #base_vars = list(hf.loc[1:2,'V1':'V62'])
