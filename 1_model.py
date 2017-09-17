@@ -19,12 +19,12 @@ rand_seed  = 46
 ft_ready    = ['dataset_ind'] # no processing
 ft_to_norm  = [] #['lead_time'] # normalize only
 ft_to_imp   = ['vmax_t0','vmax_hwrf'] # impute and normalize
-miss_ind    = 0
+miss_ind    = 1
 impute      = 1
-init_vals   = 0
+init_vals   = 1
 lead_times  = [3] #,6,9,12,15,18,21,24]
 epochs      = 20
-batch_size  = 10
+batch_size  = 20
 competitor  = 'ivcn'
 response    = 'vmax'
 
@@ -45,7 +45,7 @@ def s_print(str1,str2,total_length=70):
 
 def print_settings():
     print('\n\n'+str(datetime.datetime.now()))
-    s_print('Model:',model_name+'- n='+str(len(hf))+', storms='+
+    s_print('Model:',model_name+' - n='+str(len(hf))+', storms='+
           str(len(hf.storm_id.unique()))
           +', p='+str(p)+', seed='+str(rand_seed))
     s_print('Additional features:',str(ft_ready+ft_to_norm+ft_to_imp))
@@ -128,15 +128,17 @@ def apply_model(df,model,ft_to_imp,ft_to_norm,ft_ready,response,e,b_size):
 
 def sum_results(df,val_mse_df,competitor):
     df['sq_err_'+competitor]=(df['vmax_'+competitor]-df['vmax'])**2
+    df['sq_err_pred']        = (df[response+'_pred']-df[response])**2
     res = []
     for pt in range(df.partition.max()+1):
         n_obs = (df.partition == pt).sum()
         test_storms = len(df[df.partition == pt]['storm_id'].unique())
         val_mse  = val_mse_df.get_value(pt,'val_mse')
+        val_mse2  = df.loc[(df.partition == pt),'sq_err_pred'].mean()
         hwrf_mse = df.loc[(df.partition == pt),'sq_err_'+competitor].mean()
-        res.append((n_obs,test_storms,val_mse,hwrf_mse,val_mse-hwrf_mse))
+        res.append((n_obs,test_storms,val_mse,val_mse2,hwrf_mse,val_mse-hwrf_mse))
     result = pd.DataFrame(res,index=val_mse_df.index,columns=[
-            'n_test','n_storms_test','val_mse',competitor+'_mse','difference'])
+            'n_test','n_storms_test','val_mse','val_mse_direct',competitor+'_mse','difference'])
         
     print('\nResponse '+response+'\n'+str(result))
     mean_diff = result.difference.mean()
