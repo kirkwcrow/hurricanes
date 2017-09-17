@@ -5,26 +5,29 @@ from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers import Dropout
 import datetime
-np.random.seed(46)
+
 
 
 ### PROGRAM PARAMETERS ###
 wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\"
 filename   = '0_clean_data.csv'
+model_name = 'SLR + residuals'
 print_work = 1
+rand_seed  = 46
 
 ### MODEL PARAMETERS ###
-ft_ready   = ['dataset_ind'] # no processing
-ft_to_norm = ['lead_time'] # normalize only
-ft_to_imp  = ['vmax_t0','vmax_hwrf'] # impute and normalize
-miss_ind   = 1
-impute     = 1
-init_vals  = 1
-lead_times = [3,6,9,12,15,18,21,24]
-epochs     = 20
-batch_size = 50
-competitor = 'ivcn'
-response   = 'vmax'
+ft_ready    = ['dataset_ind'] # no processing
+ft_to_norm  = [] #['lead_time'] # normalize only
+ft_to_imp   = ['vmax_t0','vmax_hwrf'] # impute and normalize
+miss_ind    = 0
+impute      = 1
+init_vals   = 0
+lead_times  = [3] #,6,9,12,15,18,21,24]
+epochs      = 20
+batch_size  = 10
+competitor  = 'ivcn'
+nn_response = 'residual_hwrf'
+response    = 'vmax'
 
 ### FUNCTIONS ###
 def create_model(p):
@@ -38,20 +41,26 @@ def create_model(p):
     model.compile(loss='mean_squared_error', optimizer='adam')
     return model
 
+def s_print(str1,str2,total_length=70):
+    print(str1+'.'*(total_length - len(str1+str2))+str2)
+
 def print_settings():
-    print('\n\nModel run '+str(datetime.datetime.now()), ', p='+str(p))
-    print('Additional features: '+str(ft_ready+ft_to_norm+ft_to_imp))
-    print('Initial values: '  + str(init_vals))
-    print('Missing indicators: '+str(miss_ind))
-    print('Imputation: '+str(impute))
-    print('Lead times: '+str(lead_times))
-    print('Epochs: '+str(epochs) + ' / Batch size: '+str(batch_size))
+    print('\n\n'+str(datetime.datetime.now()))
+    s_print('Model:',model_name+'- n='+str(len(hf))+', storms='+
+          str(len(hf.storm_id.unique()))
+          +', p='+str(p)+', seed='+str(rand_seed))
+    s_print('Additional features:',str(ft_ready+ft_to_norm+ft_to_imp))
+    s_print('Initial values:'  , str(init_vals))
+    s_print('Missing indicators:',str(miss_ind))
+    s_print('Imputation:',str(impute))
+    s_print('Lead times:',str(lead_times))
+    s_print('Epochs/Batch size:',str(epochs)+ '/'+str(batch_size))
     
 def normalize_features(df,feature_list,test_pt):
     for ft in feature_list:
          train_data  = df.loc[(df[ft]!=-9999) & (df.partition != test_pt),ft]
          df[ft+'_n'] = ( ((df[ft]-train_data.mean())/train_data.std())*
-                        (df[ft] != -9999).astype(int)  ) # norm. non-missing
+                        (df[ft] != -9999).astype(int) ) # norm. non-missing
 
 def impute_features(df,feature_list,features_norm_only,test_pt):
     tmp = df.copy()
@@ -81,26 +90,25 @@ def kfold_partition(df,grouping_var,k):
             np.random.rand(len(groups)),k,labels=range(k)).codes
     return df.merge(groups,how='left',on=grouping_var)
 
-
 def fit_SLR_hwrf(df,response,test_pt):
     reg = LinearRegression()
     reg.fit(df.loc[df.partition != test_pt,'vmax_hwrf'].values.reshape(-1,1),
             df.loc[df.partition != test_pt,response].values)
-    
     return reg.predict(df['vmax_hwrf'].values.reshape(-1,1))
 
 def apply_model(df,model,ft_to_imp,ft_to_norm,ft_ready,response,e,b_size):
     pts = df.partition.unique()
     pts.sort()
     mse_results = []
-    df[response+'_pred'] = np.zeros(len(df))
+    df['residual_hwrf_pred'] = np.zeros(len(df))
+    df['vmax_pred'] = np.zeros(len(df))
     for test_pt in pts:
         print(str(test_pt),end='')
         df_n = df.copy(deep=True)
                 
-        df_n['vmax_slr'] = fit_SLR_hwrf(df_n,response,test_pt)
-        df_n['residual_hwrf'] = df['vmax_slr'] - df['vmax']
-        
+        df_n[response+'_slr'] = fit_SLR_hwrf(df_n,response,test_pt)
+        df_n[nn_response] = df_n[response+'_slr'] - df_n[response]
+
         if impute == 1: impute_features(df_n,ft_to_imp,ft_to_norm,test_pt)
         else: normalize_features(df_n,ft_to_imp+ft_to_norm,test_pt)
         
@@ -112,18 +120,23 @@ def apply_model(df,model,ft_to_imp,ft_to_norm,ft_ready,response,e,b_size):
             features = features + [x + '_miss' for x in ft_to_imp]
         
         df_X1 = df_n.loc[df_n.partition!=test_pt,features]
-        df_Y1 = df_n.loc[df_n.partition!=test_pt,'residual_hwrf']
+        df_Y1 = df_n.loc[df_n.partition!=test_pt,nn_response]
         df_X2 = df_n.loc[df_n.partition==test_pt,features]
-        df_Y2 = df_n.loc[df_n.partition==test_pt,'residual_hwrf']
+        df_Y2 = df_n.loc[df_n.partition==test_pt,nn_response]
 
         model.load_weights(wk_dir+'nn_initial_weights.h5')
         hist = model.fit(df_X1.values,df_Y1.values,epochs=e,batch_size=b_size
                   ,validation_data=(df_X2.values,df_Y2.values)
                   ,verbose=print_work)
         mse_results.append(hist.history['val_loss'][-1])
-        df.loc[df.partition==test_pt,response+'_pred'] = (
-                model.predict(df_X2.values,batch_size=b_size))
- 
+        
+        test_residuals = model.predict(df_X2.values,batch_size=b_size)
+        test_hwrf_vals = df.loc[df.partition==test_pt,'vmax_hwrf'].values 
+        final_preds    = [sum(x) for x in zip(test_residuals,test_hwrf_vals)]
+        
+        df.loc[df.partition==test_pt,nn_response+'_pred'] = test_residuals
+        df.loc[df.partition==test_pt,response+'_pred'] = final_preds
+
     mse_df = pd.DataFrame(mse_results,index=range(len(pts))
                 ,columns=['val_mse'])
     return mse_df
@@ -145,29 +158,26 @@ def sum_results(df,val_mse_df,competitor):
     mean_diff = result.difference.mean()
     print('Mean difference: '+str(round(mean_diff,3))+
           ' ('+str(round(100*mean_diff/df['sq_err_'+competitor].mean(),1))+'%)') ## only valid if full dataset used
-    print('Total obs: '   +str(len(df)))
-    print('Total storms: '+str(len(df.storm_id.unique())))
     return result
     
 
 ### EXECUTE ###
+np.random.seed(rand_seed)
 hf_raw = pd.read_csv(wk_dir+filename,index_col=0,parse_dates=['date']) 
 hf=hf_raw[(hf_raw.vmax != -9999) & (hf_raw['vmax_'+competitor] != -9999)]
 hf=hf[hf.lead_time.isin(lead_times)]
 hf=kfold_partition(hf,'storm_id',10)
  
-test = fit_SLR_hwrf(hf,response,1)
-#
-#base_vars = list(hf.loc[1:2,'V1':'V62'])
-#ft_to_impute = base_vars+ ft_to_imp + (
-#        init_vals*list(hf.loc[1:2,'V1_t0':'V62_t0']) )
-#p = (1+miss_ind)*len(ft_to_impute)+len(ft_to_norm)+len(ft_ready)
-#nn_model = create_model(p)
-#nn_model.save_weights(wk_dir+'nn_initial_weights.h5')
-#
-#val_mse=apply_model(hf,nn_model,ft_to_impute,ft_to_norm,ft_ready,
-#                    response,epochs,batch_size)
-#print_settings()
-#results=sum_results(hf,val_mse,competitor)
+base_vars = list(hf.loc[1:2,'V1':'V62'])
+ft_to_impute = base_vars+ ft_to_imp + (
+        init_vals*list(hf.loc[1:2,'V1_t0':'V62_t0']) )
+p = (1+miss_ind)*len(ft_to_impute)+len(ft_to_norm)+len(ft_ready)
+nn_model = create_model(p)
+nn_model.save_weights(wk_dir+'nn_initial_weights.h5')
+
+val_mse=apply_model(hf,nn_model,ft_to_impute,ft_to_norm,ft_ready,
+                    response,epochs,batch_size)
+print_settings()
+results=sum_results(hf,val_mse,competitor)
 
 #hf.to_csv(path_or_buf=wk_dir+'1_model_preds.csv',index=True)
