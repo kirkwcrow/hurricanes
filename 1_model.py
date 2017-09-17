@@ -19,7 +19,7 @@ rand_seed  = 46
 ft_ready    = ['dataset_ind'] # no processing
 ft_to_norm  = [] #['lead_time'] # normalize only
 ft_to_imp   = ['vmax_t0','vmax_hwrf'] # impute and normalize
-miss_ind    = 1
+miss_ind    = 0
 impute      = 1
 init_vals   = 1
 lead_times  = [3] #,6,9,12,15,18,21,24]
@@ -126,24 +126,23 @@ def apply_model(df,model,ft_to_imp,ft_to_norm,ft_ready,response,e,b_size):
     return mse_df
 
 
-def sum_results(df,val_mse_df,competitor):
-    df['sq_err_'+competitor]=(df['vmax_'+competitor]-df['vmax'])**2
+def sum_results(df,competitor):
+    df['sq_err_'+competitor] = (df['vmax_'+competitor]-df[response])**2
     df['sq_err_pred']        = (df[response+'_pred']-df[response])**2
     res = []
-    for pt in range(df.partition.max()+1):
-        n_obs = (df.partition == pt).sum()
-        test_storms = len(df[df.partition == pt]['storm_id'].unique())
-        val_mse  = val_mse_df.get_value(pt,'val_mse')
-        val_mse2  = df.loc[(df.partition == pt),'sq_err_pred'].mean()
-        hwrf_mse = df.loc[(df.partition == pt),'sq_err_'+competitor].mean()
-        res.append((n_obs,test_storms,val_mse,val_mse2,hwrf_mse,val_mse-hwrf_mse))
-    result = pd.DataFrame(res,index=val_mse_df.index,columns=[
-            'n_test','n_storms_test','val_mse','val_mse_direct',competitor+'_mse','difference'])
-        
+    parts = list(range(df.partition.max()+1))+['all']
+    for pt in parts:
+        if pt == 'all': rows = (df.partition > -1)
+        else:           rows = (df.partition == pt)
+        n_obs = rows.sum()
+        test_storms = len(df[rows]['storm_id'].unique())
+        val_mse  = df.loc[rows,'sq_err_pred'].mean()
+        comp_mse = df.loc[rows,'sq_err_'+competitor].mean()
+        res.append((n_obs,test_storms,val_mse,comp_mse,val_mse-comp_mse,
+                    (val_mse-comp_mse)/comp_mse))
+    result = pd.DataFrame(res,index=parts,columns=['n','n_storms','val_mse',
+                          competitor+'_mse','difference','pct_diff'])
     print('\nResponse '+response+'\n'+str(result))
-    mean_diff = result.difference.mean()
-    print('Mean difference: '+str(round(mean_diff,3))+
-          ' ('+str(round(100*mean_diff/df['sq_err_'+competitor].mean(),1))+'%)') ## only valid if full dataset used
     return result
     
 
@@ -164,6 +163,6 @@ nn_model.save_weights(wk_dir+'nn_initial_weights.h5')
 val_mse=apply_model(hf,nn_model,ft_to_impute,ft_to_norm,ft_ready,
                     response,epochs,batch_size)
 print_settings()
-results=sum_results(hf,val_mse,competitor)
+results=sum_results(hf,competitor)
 
 #hf.to_csv(path_or_buf=wk_dir+'1_model_preds.csv',index=True)
