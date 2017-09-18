@@ -19,9 +19,9 @@ rand_seed  = 46
 ft_ready    = ['dataset_ind'] # no processing
 ft_to_norm  = [] #['lead_time'] # normalize only
 ft_to_imp   = ['vmax_t0','vmax_hwrf'] # impute and normalize
-miss_ind    = 0
+miss_ind    = 1
 impute      = 1
-init_vals   = 0
+init_vals   = 1
 lead_times  = [3] #,6,9,12,15,18,21,24]
 epochs      = 20
 batch_size  = 20
@@ -144,9 +144,10 @@ def apply_model(df,model,ft_to_imp,ft_to_norm,ft_ready,response,e,b_size):
                 ,columns=['val_mse'])
     return mse_df
 
+
 def sum_results(df,competitor):
-    df['sq_err_'+competitor] = (df['vmax_'+competitor]-df[response])**2
-    df['sq_err_pred']        = (df[response+'_pred']-df[response])**2
+    df['abs_err_'+competitor] = np.abs(df['vmax_'+competitor]-df[response])
+    df['abs_err_pred']        = np.abs(df[response+'_pred']-df[response])
     res = []
     parts = list(range(df.partition.max()+1))+['all']
     for pt in parts:
@@ -154,14 +155,15 @@ def sum_results(df,competitor):
         else:           rows = (df.partition == pt)
         n_obs = rows.sum()
         test_storms = len(df[rows]['storm_id'].unique())
-        val_mse  = df.loc[rows,'sq_err_pred'].mean()
-        comp_mse = df.loc[rows,'sq_err_'+competitor].mean()
-        res.append((n_obs,test_storms,val_mse,comp_mse,val_mse-comp_mse,
-                    (val_mse-comp_mse)/comp_mse))
-    result = pd.DataFrame(res,index=parts,columns=['n','n_storms','val_mse',
-                          competitor+'_mse','difference','pct_diff'])
-    print('\nResponse '+response+'\n'+str(result))
+        val_mae  = df.loc[rows,'abs_err_pred'].mean()
+        comp_mae = df.loc[rows,'abs_err_'+competitor].mean()
+        res.append((n_obs,test_storms,val_mae,comp_mae,val_mae-comp_mae,
+                    (val_mae-comp_mae)/comp_mae))
+    result = pd.DataFrame(res,index=parts,columns=['n','n_storms','val_mae',
+                          competitor+'_mae','difference','pct_diff'])
+    print('\n'+str(result))
     return result
+
 
 ### EXECUTE ###
 np.random.seed(rand_seed)
