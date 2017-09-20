@@ -38,7 +38,7 @@ def create_model(p):
 #    model.add(Dense(300, kernel_initializer='normal', activation='relu'))
     model.add(Dense(30, kernel_initializer='normal', activation='relu'))
     model.add(Dense(1, kernel_initializer='normal',activation='linear'))
-    model.compile(loss='mean_squared_error', optimizer='adam')
+    model.compile(loss='mean_absolute_error', optimizer='adam')
     return model
 
 def s_print(str1,str2,total_length=70):
