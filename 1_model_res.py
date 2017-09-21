@@ -32,7 +32,7 @@ response    = 'vmax'
 ### FUNCTIONS ###
 def create_model(p):
     model = Sequential()
-    model.add(Dropout(0.2, input_shape=(p,))) # % of features dropped
+#    model.add(Dropout(0.2, input_shape=(p,))) # % of features dropped
     model.add(Dense(1000, input_dim=p, kernel_initializer='normal'
                     , activation='sigmoid'))
 #    model.add(Dense(300, kernel_initializer='normal', activation='relu'))

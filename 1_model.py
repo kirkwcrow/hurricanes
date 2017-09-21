@@ -19,9 +19,9 @@ rand_seed  = 46
 ft_ready    = ['dataset_ind'] # no processing
 ft_to_norm  = [] #['lead_time'] # normalize only
 ft_to_imp   = ['vmax_t0','vmax_hwrf'] # impute and normalize
-miss_ind    = 1
-impute      = 1
-init_vals   = 1
+miss_ind    = 0
+impute      = 0
+init_vals   = 0
 lead_times  = [3] #,6,9,12,15,18,21,24]
 epochs      = 20
 batch_size  = 20
@@ -31,7 +31,7 @@ response    = 'vmax'
 ### FUNCTIONS ###
 def create_model(p):
     model = Sequential()
-    model.add(Dropout(0.2, input_shape=(p,))) # % of features dropped
+#    model.add(Dropout(0.2, input_shape=(p,)))
     model.add(Dense(1000, input_dim=p, kernel_initializer='normal'
                     , activation='sigmoid'))
 #    model.add(Dense(300, kernel_initializer='normal', activation='relu'))
@@ -156,7 +156,7 @@ hf=kfold_partition(hf,'storm_id',10)
 base_vars = list(hf.loc[1:2,'V1':'V62'])
 ft_to_impute = base_vars+ ft_to_imp + (
         init_vals*list(hf.loc[1:2,'V1_t0':'V62_t0']) )
-p = (1+miss_ind)*len(ft_to_impute)+len(ft_to_norm)+len(ft_ready)
+p = int((1+miss_ind)*len(ft_to_impute)+len(ft_to_norm)+len(ft_ready))
 nn_model = create_model(p)
 nn_model.save_weights(wk_dir+'nn_initial_weights.h5')
 
