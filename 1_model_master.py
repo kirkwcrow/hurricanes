@@ -1,9 +1,10 @@
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LinearRegression
+#from keras.models import Model
+#from keras.layers import *
 from keras.models import Sequential
 from keras.layers import Dense
-from keras.layers import Dropout
 import datetime
 
 ### PROGRAM PARAMETERS ###
@@ -15,22 +16,22 @@ rand_seed  = 46
 ### MODEL PARAMETERS ###
 ft_ready    = ['dataset_ind'] # no processing
 ft_to_norm  = [] #['lead_time'] # normalize only
-ft_to_imp   = ['vmax_t0','vmax_hwrf'] # impute and normalize
-fit_resids  = 0
+ft_to_imp   = ['vmax_hwrf','vmax_t0'] # impute and normalize
+fit_resids  = 1
+init_vals   = 0
 miss_ind    = 1
 impute      = 1
-init_vals   = 1
-lead_times  = [3] #,6,9,12,15,18,21,24]
+lead_times  = [3,6,9,12,15,18,21,24]
 epochs      = 20
-batch_size  = 20
-cost_fn     = 'mean_absolute_error'
+batch_size  = 15
+cost_fn     = 'mean_squared_error'
 competitor  = 'ivcn'
 response    = 'vmax'
 
-### FUNCTIONS ###
+## FUNCTIONS ###
 def create_model(p):
     model = Sequential()
-    model.add(Dropout(0.2, input_shape=(p,))) # % of features dropped
+#    model.add(Dropout(0.2, input_shape=(p,))) # % of features dropped
     model.add(Dense(1000, input_dim=p, kernel_initializer='normal'
                     , activation='sigmoid'))
 #    model.add(Dense(300, kernel_initializer='normal', activation='relu'))
@@ -39,6 +40,22 @@ def create_model(p):
     model.compile(loss=cost_fn, optimizer='adam')
     return model
 
+#def create_model(p_essential,p_droppable):
+#    essential_ft = Input((p_essential,))
+#    droppable_ft = Input((p_droppable,))
+#
+#    dropped = Dropout(0.2)(droppable_ft) # % of features dropped
+#    completeInput = Concatenate()([essential_ft,droppable_ft])        
+#
+#    layer_1 = Dense(1000,kernel_initializer='normal'
+#                    ,activation='sigmoid')(completeInput)
+#    layer_2 = Dense(30, kernel_initializer='normal', activation='relu')(layer_1)
+#    output = Dense(1, kernel_initializer='normal',activation='linear')(layer_2)
+#
+#    model = Model([essential_ft,droppable_ft],output)
+#    model.compile(loss=cost_fn, optimizer='adam')
+#    return model
+
 
 def s_print(str1,str2,total_length=70):
     print(str1+'.'*(total_length - len(str1+str2))+str2)
@@ -46,9 +63,9 @@ def s_print(str1,str2,total_length=70):
 
 def print_settings():
     print('\n\n'+str(datetime.datetime.now()))
-    s_print('','n='+str(len(hf))+', storms='+
-          str(len(hf.storm_id.unique()))
-          +', p='+str(p)+', seed='+str(rand_seed))
+    s_print('General:','n='+str(len(hf))+', storms='+str(len(hf.storm_id.unique()))
+          +', p='+str(p)+', seed='+str(rand_seed)+', epochs='+str(epochs)
+          +', batch size='+str(batch_size))
     s_print('Cost function:',cost_fn)
     s_print('Additional features:',str(ft_ready+ft_to_norm+ft_to_imp))
     s_print('Predict HWRF residuals: ',str(fit_resids))
@@ -56,7 +73,7 @@ def print_settings():
     s_print('Missing indicators:',str(miss_ind))
     s_print('Imputation:',str(impute))
     s_print('Lead times:',str(lead_times))
-    s_print('Epochs/Batch size:',str(epochs)+ '/'+str(batch_size))
+    
     
 def normalize_features(df,feature_list,test_pt):
     for ft in feature_list:
@@ -113,7 +130,6 @@ def apply_NN_1pt(df,model,test_pt,features,response,e,b_size):
                   ,verbose=print_work)
         return model.predict(df_X2.values,batch_size=b_size)
 
-#def apply_NN(df,test_pt,features,)
 
 def apply_model(df,model,ft_to_imp,ft_to_norm,ft_ready,response,e,b_size):
     pts = df.partition.unique()
@@ -140,12 +156,13 @@ def apply_model(df,model,ft_to_imp,ft_to_norm,ft_ready,response,e,b_size):
         nn_preds=apply_NN_1pt(df_n,model,test_pt,features,nn_response,e,b_size)
         
         if fit_resids == 1:
-            test_hwrf_vals = df_n.loc[df.partition==test_pt,'vmax_slr'].values #check
+            test_hwrf_vals = df_n.loc[df.partition==test_pt
+                                      ,response+'_slr'].values
             preds = [sum(x) for x in zip(nn_preds,test_hwrf_vals)]
         else: preds = nn_preds
         
         df.loc[df.partition == test_pt,response+'_pred'] = preds   
-    #return 
+    return np.abs(df[response+'_pred'] - df[response]).mean() # MAE
 
 def bsample(df,by_id):
     return df.copy()
@@ -182,10 +199,18 @@ p = (1+miss_ind)*len(ft_to_impute)+len(ft_to_norm)+len(ft_ready)
 nn_model = create_model(p)
 nn_model.save_weights(wk_dir+'nn_initial_weights.h5')
 
-hf=kfold_partition(hf,'storm_id',10) 
-apply_model(hf,nn_model,ft_to_impute,ft_to_norm,ft_ready,
+results = []
+for lt in lead_times:
+    print('Lead time: '+str(lt))
+    tmp = hf[hf.lead_time == lt]
+    tmp=kfold_partition(tmp,'storm_id',10) 
+    mae = apply_model(tmp,nn_model,ft_to_impute,ft_to_norm,ft_ready,
                     response,epochs,batch_size)
+    results.append((lt,mae))
 print_settings()
 sum_results(hf,competitor)
+print(results)
 
+res_df =pd.DataFrame(data=results,columns=['lead_time','pred_sep_mae'])
+res_df.to_csv(path_or_buf=wk_dir+'1_model_preds_separate.csv',index=False)
 #hf.to_csv(path_or_buf=wk_dir+'1_model_preds.csv',index=True)
