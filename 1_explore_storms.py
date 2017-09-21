@@ -52,18 +52,30 @@ df.replace(-9999,value=np.NaN,inplace=True)
 
 
 df_nm = df.copy()
+sep_models = pd.read_csv(wk_dir+'1_model_preds_separate.csv',index_col=0)
+
 cols = []
 for competitor in ['hwrf','pred','ivcn']:
-    df_nm[competitor] = (df_nm['vmax_'+competitor] - df_nm.vmax)**2
+    df_nm[competitor] = np.abs(df_nm['vmax_'+competitor] - df_nm.vmax)
     cols = cols+[competitor]
 
-model_perf = df_nm.groupby(['lead_time','dataset'])[cols].agg('mean').reset_index()
+model_perf = df_nm.groupby(['lead_time'])[cols].agg('mean')
+model_perf=model_perf.merge(sep_models,how='left',left_index=True,
+                            right_index=True)
+model_perf.columns = ['hwrf','nn_pool','ivcn','nn_sep']
 fig = plt.figure()
-ax1 = fig.add_subplot(221)
-ax2 = fig.add_subplot(222)
-model_perf[model_perf.dataset == 'atlantic'].plot(x='lead_time',ax=ax1
+ax1 = fig.add_subplot(111)
+model_perf.plot(ax=ax1,ylim=0
           ,xticks=[3,6,9,12,15,18,21,24]
-          ,title='Atlantic',sharey=True,figsize=(11,8))
-model_perf[model_perf.dataset == 'east_pacific'].plot(x='lead_time',ax=ax2
-          ,xticks=[3,6,9,12,15,18,21,24],sharey=True,title='East Pacific')
-print(model_perf.sort_values('dataset').to_clipboard())
+          ,title='Model MAE by lead time',figsize=(7,5))
+
+#model_perf = df_nm.groupby(['lead_time','dataset'])[cols].agg('mean').reset_index()
+#fig = plt.figure()
+#ax1 = fig.add_subplot(221)
+#ax2 = fig.add_subplot(222)
+#model_perf[model_perf.dataset == 'atlantic'].plot(x='lead_time',ax=ax1
+#          ,xticks=[3,6,9,12,15,18,21,24]
+#          ,title='Atlantic',sharey=True,figsize=(11,8))
+#model_perf[model_perf.dataset == 'east_pacific'].plot(x='lead_time',ax=ax2
+#          ,xticks=[3,6,9,12,15,18,21,24],sharey=True,title='East Pacific')
+#print(model_perf.sort_values('dataset').to_clipboard())
