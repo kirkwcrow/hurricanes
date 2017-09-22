@@ -10,7 +10,7 @@ import datetime
 ### PROGRAM PARAMETERS ###
 wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\"
 filename   = '0_clean_data.csv'
-print_work = 1
+print_work = 0
 rand_seed  = 46
 
 ### MODEL PARAMETERS ###
@@ -21,7 +21,7 @@ fit_resids  = 1
 init_vals   = 0
 miss_ind    = 1
 impute      = 1
-lead_times  = [3,6,9,12,15,18,21,24]
+lead_times  = [3] #,6,9,12,15,18,21,24]
 epochs      = 20
 batch_size  = 15
 cost_fn     = 'mean_squared_error'
@@ -165,7 +165,9 @@ def apply_model(df,model,ft_to_imp,ft_to_norm,ft_ready,response,e,b_size):
     return np.abs(df[response+'_pred'] - df[response]).mean() # MAE
 
 def bsample(df,by_id):
-    return df.copy()
+    groups=pd.DataFrame(data=df[by_id].unique(),columns=[by_id])
+    bootstr=groups.loc[np.random.randint(0,len(groups),size=len(groups))]
+    return df.merge(bootstr,'right','storm_id')
 
 def sum_results(df,competitor):
     df['abs_err_'+competitor] = np.abs(df['vmax_'+competitor]-df[response])
@@ -192,6 +194,7 @@ np.random.seed(rand_seed)
 hf_raw = pd.read_csv(wk_dir+filename,index_col=0,parse_dates=['date']) 
 hf=hf_raw[(hf_raw.vmax != -9999) & (hf_raw['vmax_'+competitor] != -9999)]
 hf=hf[hf.lead_time.isin(lead_times)]
+
 base_vars = list(hf.loc[1:2,'V1':'V62'])
 ft_to_impute = base_vars+ ft_to_imp + (
         init_vals*list(hf.loc[1:2,'V1_t0':'V62_t0']) )
@@ -199,18 +202,33 @@ p = (1+miss_ind)*len(ft_to_impute)+len(ft_to_norm)+len(ft_ready)
 nn_model = create_model(p)
 nn_model.save_weights(wk_dir+'nn_initial_weights.h5')
 
-results = []
-for lt in lead_times:
-    print('Lead time: '+str(lt))
-    tmp = hf[hf.lead_time == lt]
-    tmp=kfold_partition(tmp,'storm_id',10) 
-    mae = apply_model(tmp,nn_model,ft_to_impute,ft_to_norm,ft_ready,
-                    response,epochs,batch_size)
-    results.append((lt,mae))
-print_settings()
-sum_results(hf,competitor)
-print(results)
+res = []
+for i in range(100):
+    df_bs = bsample(hf,'storm_id')
+    df_bs=kfold_partition(df_bs,'storm_id',10) 
+    mae = apply_model(df_bs,nn_model,ft_to_impute,ft_to_norm,ft_ready,
+                  response,epochs,batch_size)
+    res.append(mae)
+print(res)   
+#print_settings()
+#sum_results(hf,competitor)
 
-res_df =pd.DataFrame(data=results,columns=['lead_time','pred_sep_mae'])
-res_df.to_csv(path_or_buf=wk_dir+'1_model_preds_separate.csv',index=False)
-#hf.to_csv(path_or_buf=wk_dir+'1_model_preds.csv',index=True)
+
+#    bootstr.merge(df,'left',left_on=by_id,
+
+
+
+
+#results = []
+#for lt in lead_times:
+#    print('Lead time: '+str(lt))
+#    tmp = hf[hf.lead_time == lt]
+#    tmp=kfold_partition(tmp,'storm_id',10) 
+#    mae = apply_model(tmp,nn_model,ft_to_impute,ft_to_norm,ft_ready,
+#                    response,epochs,batch_size)
+#    results.append((lt,mae))
+
+
+#res_df =pd.DataFrame(data=results,columns=['lead_time','pred_sep_mae'])
+#res_df.to_csv(path_or_buf=wk_dir+'1_model_preds_separate.csv',index=False)
+#hf.to_csv(path_or_buf=wk_dir+'1_model_preds.csv',index=True) 
