@@ -51,4 +51,4 @@ atl = single_import(wk_dir+file_1,'atlantic',0)
 pac = single_import(wk_dir+file_2,'east_pacific',1)
 df = atl.append(pac,ignore_index = True)
 
-df.to_csv(path_or_buf=wk_dir+'0_clean_data.csv',index=True)
+#df.to_csv(path_or_buf=wk_dir+'0_clean_data.csv',index=True)

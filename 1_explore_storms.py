@@ -20,7 +20,7 @@ df.replace(-9999,value=np.NaN,inplace=True)
 #    tmp.plot(x='lead_time',xlim=[3,24],xticks=[3,6,9,12,15,18,21,24],
 #             title='Storm '+str(storm_id)
 #            +'\nVMAX and estimates from first prediction')
-#
+
 #storms = df.groupby(['storm_id','lead_time']).agg(
 #        {'date':['count','min','max'],'vmax':['min','mean','max','count']
 #        ,'vmax_hwrf':['count'],'vmax_pred':['count'],'vmax_ivcn':['count']})
@@ -34,13 +34,13 @@ df.replace(-9999,value=np.NaN,inplace=True)
 #storms.to_clipboard()
 
 
-#lead_time = 3
-#for storm_id in storms_nonmiss:
-#    rows = df.storm_id == storm_id
-#    tmp=df.loc[(rows) & (df.lead_time == lead_time),['date']+vmax_vals]
-#    tmp.plot(x='date',title='Storm '+str(storm_id)
-#            +'\nVMAX and estimates for lead time '+str(lead_time))
-#
+lead_time = 3
+for storm_id in storms_nonmiss:
+    rows = df.storm_id == storm_id
+    tmp=df.loc[(rows) & (df.lead_time == lead_time),['date']+vmax_vals]
+    tmp.plot(x='date',title='Storm '+str(storm_id)
+            +'\nVMAX and estimates for lead time '+str(lead_time))
+
 
 #tmp = storms.reset_index()
 ##tmp[tmp.lead_time==0].value_counts()
@@ -51,23 +51,26 @@ df.replace(-9999,value=np.NaN,inplace=True)
 #print(storms.vmax_nhc_miss.value_counts().sort_index())
 
 
-df_nm = df.copy()
-sep_models = pd.read_csv(wk_dir+'1_model_preds_separate.csv',index_col=0)
-
-cols = []
-for competitor in ['hwrf','pred','ivcn']:
-    df_nm[competitor] = np.abs(df_nm['vmax_'+competitor] - df_nm.vmax)
-    cols = cols+[competitor]
-
-model_perf = df_nm.groupby(['lead_time'])[cols].agg('mean')
-model_perf=model_perf.merge(sep_models,how='left',left_index=True,
-                            right_index=True)
-model_perf.columns = ['hwrf','nn_pool','ivcn','nn_sep']
-fig = plt.figure()
-ax1 = fig.add_subplot(111)
-model_perf.plot(ax=ax1,ylim=0
-          ,xticks=[3,6,9,12,15,18,21,24]
-          ,title='Model MAE by lead time',figsize=(7,5))
+## PERFORMANCE BY LEAD TIME
+#sep_models = pd.read_csv(wk_dir+'1_model_preds_separate.csv',index_col=0)
+#df_c  = pd.read_csv(wk_dir+'0_clean_data.csv',index_col=0)
+#df_c = df_c[(df_c.vmax != -9999) & (df_c.vmax_ivcn != -9999) & (df_c.vmax_nhc != -9999) & df_c.lead_time > 0]
+#
+#cols = []
+#competitors = ['nhc']
+#for competitor in competitors:
+#    df_c[competitor] = np.abs(df_c['vmax_'+competitor] - df_c.vmax)
+#    cols = cols+[competitor]
+#
+#model_perf = df_c.groupby(['lead_time'])[cols].agg('mean')
+#model_perf=model_perf.merge(sep_models,how='left',left_index=True,
+#                            right_index=True)
+#model_perf.columns = competitors + ['nn_separate']
+#fig = plt.figure()
+#ax1 = fig.add_subplot(111)
+#model_perf.plot(ax=ax1,ylim=0
+#          ,xticks=[6*(x+.5) for x in range(16)]
+#          ,title='Model MAE by lead time',figsize=(9,7))
 
 #model_perf = df_nm.groupby(['lead_time','dataset'])[cols].agg('mean').reset_index()
 #fig = plt.figure()

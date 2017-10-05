@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from scipy.stats import t
 from sklearn.linear_model import LinearRegression
 #from keras.models import Model
 #from keras.layers import *
@@ -21,7 +22,7 @@ fit_resids  = 1
 init_vals   = 0
 miss_ind    = 1
 impute      = 1
-lead_times  = [3] #,6,9,12,15,18,21,24]
+lead_times  = [3] #[3*(x+1) for x in range(32)]
 epochs      = 20
 batch_size  = 15
 cost_fn     = 'mean_squared_error'
@@ -118,9 +119,10 @@ def fit_SLR_hwrf(df,response,test_pt):
     return reg.predict(df['vmax_hwrf'].values.reshape(-1,1))
 
 
-def apply_NN_1pt(df,model,test_pt,features,response,e,b_size):
+def apply_NN_1pt(df,model,test_pt,features,response,e,b_size): 
         df_X1 = df.loc[df.partition!=test_pt,features]
         df_Y1 = df.loc[df.partition!=test_pt,response]
+
         df_X2 = df.loc[df.partition==test_pt,features]
         df_Y2 = df.loc[df.partition==test_pt,response]
 
@@ -164,10 +166,47 @@ def apply_model(df,model,ft_to_imp,ft_to_norm,ft_ready,response,e,b_size):
         df.loc[df.partition == test_pt,response+'_pred'] = preds   
     return np.abs(df[response+'_pred'] - df[response]).mean() # MAE
 
+
 def bsample(df,by_id):
     groups=pd.DataFrame(data=df[by_id].unique(),columns=[by_id])
     bootstr=groups.loc[np.random.randint(0,len(groups),size=len(groups))]
-    return df.merge(bootstr,'right','storm_id')
+    return df.merge(bootstr,'right',by_id)
+
+def bootstrap(df,n):
+    res = []
+    for i in range(n):
+        df_bs = bsample(df,'storm_id')
+        df_bs=kfold_partition(df_bs,'storm_id',10) 
+        mae = apply_model(df_bs,nn_model,ft_to_impute,ft_to_norm,ft_ready,
+                      response,epochs,batch_size)
+        res.append(mae)
+    mae_est = np.mean(res)
+    ci = t.interval(0.95,n-1,mae_est,np.std(res))
+    
+    print_settings()
+    print('\nBootstrap results (n='+str(n)+'):\n'
+          +'Mean: '+str(mae_est)
+          +'\n95% CI: '+str(ci))
+    return res
+
+def single_run(df):
+    df = kfold_partition(df,'storm_id',10)
+    apply_model(df,nn_model,ft_to_impute,ft_to_norm,ft_ready,
+                response,epochs,batch_size)
+    print_settings()
+    sum_results(df,competitor)
+    return df
+
+def multi_run(df,lead_times):
+    results = []
+    for lt in lead_times:
+        print('Lead time: '+str(lt))
+        tmp = hf[hf.lead_time == lt]
+        tmp=kfold_partition(tmp,'storm_id',10) 
+        mae = apply_model(tmp,nn_model,ft_to_impute,ft_to_norm,ft_ready,
+                        response,epochs,batch_size)
+        results.append((lt,mae))
+    return pd.DataFrame(data=results,columns=['lead_time','pred_sep_mae'])
 
 def sum_results(df,competitor):
     df['abs_err_'+competitor] = np.abs(df['vmax_'+competitor]-df[response])
@@ -189,7 +228,7 @@ def sum_results(df,competitor):
     return result
 
 
-### EXECUTE ###
+### PREP ###
 np.random.seed(rand_seed)
 hf_raw = pd.read_csv(wk_dir+filename,index_col=0,parse_dates=['date']) 
 hf=hf_raw[(hf_raw.vmax != -9999) & (hf_raw['vmax_'+competitor] != -9999)]
@@ -202,33 +241,12 @@ p = (1+miss_ind)*len(ft_to_impute)+len(ft_to_norm)+len(ft_ready)
 nn_model = create_model(p)
 nn_model.save_weights(wk_dir+'nn_initial_weights.h5')
 
-res = []
-for i in range(100):
-    df_bs = bsample(hf,'storm_id')
-    df_bs=kfold_partition(df_bs,'storm_id',10) 
-    mae = apply_model(df_bs,nn_model,ft_to_impute,ft_to_norm,ft_ready,
-                  response,epochs,batch_size)
-    res.append(mae)
-print(res)   
-#print_settings()
-#sum_results(hf,competitor)
+### EXECUTE ###
 
+#bootstrap_results = bootstrap(3)
+hf = single_run(hf)
 
-#    bootstr.merge(df,'left',left_on=by_id,
+#res = multi_run(hf,lead_times)
 
-
-
-
-#results = []
-#for lt in lead_times:
-#    print('Lead time: '+str(lt))
-#    tmp = hf[hf.lead_time == lt]
-#    tmp=kfold_partition(tmp,'storm_id',10) 
-#    mae = apply_model(tmp,nn_model,ft_to_impute,ft_to_norm,ft_ready,
-#                    response,epochs,batch_size)
-#    results.append((lt,mae))
-
-
-#res_df =pd.DataFrame(data=results,columns=['lead_time','pred_sep_mae'])
-#res_df.to_csv(path_or_buf=wk_dir+'1_model_preds_separate.csv',index=False)
+#res.to_csv(path_or_buf=wk_dir+'1_model_preds_separate.csv',index=False)
 #hf.to_csv(path_or_buf=wk_dir+'1_model_preds.csv',index=True) 
