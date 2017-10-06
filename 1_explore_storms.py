@@ -2,54 +2,44 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+### PROGRAM PARAMETERS ###
 wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\"
 filename   = '1_model_preds.csv' #'0_clean_data.csv'
 core_vars  = ['storm_id','lead_time','date','vmax','vmax_ivcn','vmax_pred'
               ,'vmax_hwrf']
-vmax_vals  = ['vmax','vmax_ivcn','vmax_pred','vmax_hwrf']
 
 storms_miss = [100,130,140,571,330,481,90,50,221,431,591]
 storms_nonmiss = [51,391,601,621,631,10,40,70]
                  
+### FUNCTIONS ###
+def storm_curves_fix_date(df,storm_list,competitors):
+    for storm_id in storm_list:
+        rows = df.storm_id == storm_id
+        tmp=df.loc[(rows) & (df.date == df[rows].date.min())
+                    ,['lead_time','vmax']+['vmax_'+c for c in competitors]]
+        if len(tmp) >1 :
+            tmp.plot(x='lead_time',title='Storm '+str(storm_id)
+                +'\nVMAX and estimates from first prediction')
+        else : print('Too few obs: storm '+str(storm_id))
+
+def dataset_compare(df,competitors):
+    model_perf = df.groupby(['lead_time','dataset'])[
+            ['abs_err_'+c for c in competitors]].agg('mean').reset_index()
+    fig = plt.figure()
+    ax1 = fig.add_subplot(221)
+    ax2 = fig.add_subplot(222)
+    model_perf[model_perf.dataset == 'atlantic'].plot(x='lead_time',ax=ax1
+              ,xticks=model_perf.lead_time.unique()
+              ,title='Atlantic',sharey=True,figsize=(11,8))
+    model_perf[model_perf.dataset == 'east_pacific'].plot(x='lead_time',ax=ax2
+              ,xticks=model_perf.lead_time.unique(),sharey=True,title='East Pacific')
+    return model_perf.sort_values(['dataset','lead_time'])
+
 df = pd.read_csv(wk_dir+filename,index_col=0,parse_dates=['date']) 
 df.replace(-9999,value=np.NaN,inplace=True)
-
-#for storm_id in storms_nonmiss:
-#    rows = df.storm_id == storm_id
-#    tmp=df.loc[(rows) & (df.date == df[rows].date.min()),['lead_time']+vmax_vals]
-#    tmp.plot(x='lead_time',xlim=[3,24],xticks=[3,6,9,12,15,18,21,24],
-#             title='Storm '+str(storm_id)
-#            +'\nVMAX and estimates from first prediction')
-
-#storms = df.groupby(['storm_id','lead_time']).agg(
-#        {'date':['count','min','max'],'vmax':['min','mean','max','count']
-#        ,'vmax_hwrf':['count'],'vmax_pred':['count'],'vmax_ivcn':['count']})
-#storms.columns = ['_'.join(col).strip() for col in storms.columns.values]
-#storms['duration'] = (storms[('date_max')] - storms[('date_min')]).dt.days
-#for v in vmax_vals:
-#    storms[v+'_miss'] = storms['date_count']-storms[v+'_count']
-#    del storms[v+'_count']
-#del storms['date_max']
-#storms.columns = ['n','start_dt'] + list(storms)[2:]
-#storms.to_clipboard()
-
-
-lead_time = 3
-for storm_id in storms_nonmiss:
-    rows = df.storm_id == storm_id
-    tmp=df.loc[(rows) & (df.lead_time == lead_time),['date']+vmax_vals]
-    tmp.plot(x='date',title='Storm '+str(storm_id)
-            +'\nVMAX and estimates for lead time '+str(lead_time))
-
-
-#tmp = storms.reset_index()
-##tmp[tmp.lead_time==0].value_counts()
-#summary= tmp.groupby('lead_time')['vmax_miss','vmax_ivcn_miss'
-#                    ,'vmax_nhc_miss','vmax_hwrf_miss'].agg(['mean'])
-#
-##print(storms.vmax_miss.value_counts().sort_index())
-#print(storms.vmax_nhc_miss.value_counts().sort_index())
-
+        
+#storm_curves_fix_date(df,storms_miss,['ivcn','pred','hwrf'])
+results = dataset_compare(df,['ivcn','pred'])
 
 ## PERFORMANCE BY LEAD TIME
 #sep_models = pd.read_csv(wk_dir+'1_model_preds_separate.csv',index_col=0)
@@ -72,13 +62,3 @@ for storm_id in storms_nonmiss:
 #          ,xticks=[6*(x+.5) for x in range(16)]
 #          ,title='Model MAE by lead time',figsize=(9,7))
 
-#model_perf = df_nm.groupby(['lead_time','dataset'])[cols].agg('mean').reset_index()
-#fig = plt.figure()
-#ax1 = fig.add_subplot(221)
-#ax2 = fig.add_subplot(222)
-#model_perf[model_perf.dataset == 'atlantic'].plot(x='lead_time',ax=ax1
-#          ,xticks=[3,6,9,12,15,18,21,24]
-#          ,title='Atlantic',sharey=True,figsize=(11,8))
-#model_perf[model_perf.dataset == 'east_pacific'].plot(x='lead_time',ax=ax2
-#          ,xticks=[3,6,9,12,15,18,21,24],sharey=True,title='East Pacific')
-#print(model_perf.sort_values('dataset').to_clipboard())
