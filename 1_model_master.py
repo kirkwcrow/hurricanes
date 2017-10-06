@@ -16,26 +16,25 @@ rand_seed  = 46
 
 ### MODEL PARAMETERS ###
 ft_ready    = ['dataset_ind'] # no processing
-ft_to_norm  = [] #['lead_time'] # normalize only
+ft_to_norm  = [] # normalize only
 ft_to_imp   = ['vmax_hwrf','vmax_t0'] # impute and normalize
 fit_resids  = 1
 init_vals   = 0
 miss_ind    = 1
 impute      = 1
-lead_times  = [3] #[3*(x+1) for x in range(32)]
+lead_times  = [3*(x+1) for x in range(16)]
 epochs      = 20
 batch_size  = 15
 cost_fn     = 'mean_squared_error'
 competitor  = 'ivcn'
 response    = 'vmax'
 
-## FUNCTIONS ###
+### FUNCTIONS ###
 def create_model(p):
     model = Sequential()
-#    model.add(Dropout(0.2, input_shape=(p,))) # % of features dropped
     model.add(Dense(1000, input_dim=p, kernel_initializer='normal'
                     , activation='sigmoid'))
-#    model.add(Dense(300, kernel_initializer='normal', activation='relu'))
+    #model.add(Dropout(0.2, input_shape=(p,))) # % of features dropped
     model.add(Dense(30, kernel_initializer='normal', activation='relu'))
     model.add(Dense(1, kernel_initializer='normal',activation='linear'))
     model.compile(loss=cost_fn, optimizer='adam')
@@ -58,7 +57,7 @@ def create_model(p):
 #    return model
 
 
-def s_print(str1,str2,total_length=70):
+def s_print(str1,str2,total_length=75):
     print(str1+'.'*(total_length - len(str1+str2))+str2)
 
 
@@ -197,6 +196,25 @@ def single_run(df):
     sum_results(df,competitor)
     return df
 
+#  compares results of model upon perturbation of a feature 
+def perturbed_runs(df,feature,std_list,competitor=''):
+    res = []
+    for std in std_list:
+        df_p = df.copy()
+        df_p['vmax_t0'] = df_p['vmax_t0']+np.random.randn(len(df_p))*std
+        df_p=kfold_partition(df_p,'storm_id',10) 
+        mae = apply_model(df_p,nn_model,ft_to_impute,ft_to_norm,ft_ready,
+                        response,epochs,batch_size)        
+        res.append((std,mae))
+    results = pd.DataFrame(data=res,columns=['perturbation','nn_mae'])
+    
+    if competitor != '':
+        comp_mae = (np.abs(df['vmax_'+competitor]-df['vmax'])).mean()
+        results[competitor+'_mae'] = comp_mae
+    results.plot(x='perturbation',
+                 title='NN model MAE by perturbation of '+feature)
+    return results
+
 def multi_run(df,lead_times):
     results = []
     for lt in lead_times:
@@ -234,6 +252,10 @@ hf_raw = pd.read_csv(wk_dir+filename,index_col=0,parse_dates=['date'])
 hf=hf_raw[(hf_raw.vmax != -9999) & (hf_raw['vmax_'+competitor] != -9999)]
 hf=hf[hf.lead_time.isin(lead_times)]
 
+if len(lead_times) > 1:
+    for lt in lead_times:
+        ft_ready = ft_ready + ['lead_time_'+str(lt)]
+
 base_vars = list(hf.loc[1:2,'V1':'V62'])
 ft_to_impute = base_vars+ ft_to_imp + (
         init_vals*list(hf.loc[1:2,'V1_t0':'V62_t0']) )
@@ -245,8 +267,9 @@ nn_model.save_weights(wk_dir+'nn_initial_weights.h5')
 
 #bootstrap_results = bootstrap(3)
 hf = single_run(hf)
+#results = perturbed_runs(hf,'vmax_t0',[0.5*x for x in range(20)],'ivcn') 
 
 #res = multi_run(hf,lead_times)
 
 #res.to_csv(path_or_buf=wk_dir+'1_model_preds_separate.csv',index=False)
-#hf.to_csv(path_or_buf=wk_dir+'1_model_preds.csv',index=True) 
+hf.to_csv(path_or_buf=wk_dir+'1_model_preds.csv',index=True) 
