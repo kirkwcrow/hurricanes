@@ -33,16 +33,22 @@ def single_import(filepath,dataset_label,id_num):
     tmp=tmp[cols]
     tmp.rename(columns=col_names, inplace=True)
         
+    # t_0 predictions
     predictors = list(tmp)[1:63] + ['vmax','vmax_hwrf']
     current= tmp.loc[tmp.lead_time == 0,['storm_id','date']+predictors]
     tmp=tmp.merge(current,on=['storm_id','date']
                 ,how='left',suffixes=('','_t0'))
 
+    # missing indicators
     for ft in predictors + [a+'_t0' for a in predictors]:
         if len(tmp[ft].unique()) == 1:
             del tmp[ft]
         else:
             tmp[ft+'_miss'] = (tmp[ft] == -9999).astype(int)
+    
+    # lead time indicators
+    for lt in tmp.lead_time.unique():
+        tmp['lead_time_'+str(lt)] = (tmp['lead_time'] == lt).astype(int)
     
     tmp = tmp [col_order+[var for var in list(tmp) if var not in col_order]]
     return tmp
@@ -51,4 +57,4 @@ atl = single_import(wk_dir+file_1,'atlantic',0)
 pac = single_import(wk_dir+file_2,'east_pacific',1)
 df = atl.append(pac,ignore_index = True)
 
-#df.to_csv(path_or_buf=wk_dir+'0_clean_data.csv',index=True)
+df.to_csv(path_or_buf=wk_dir+'0_clean_data.csv',index=True)
