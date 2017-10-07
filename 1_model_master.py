@@ -2,10 +2,9 @@ import numpy as np
 import pandas as pd
 from scipy.stats import t
 from sklearn.linear_model import LinearRegression
-#from keras.models import Model
-#from keras.layers import *
+from keras.models import Model
 from keras.models import Sequential
-from keras.layers import Dense
+from keras.layers import Input,Dense,Concatenate
 import datetime
 
 ### PROGRAM PARAMETERS ###
@@ -18,11 +17,11 @@ rand_seed  = 46
 ft_ready    = ['dataset_ind'] # no processing
 ft_to_norm  = [] # normalize only
 ft_to_imp   = ['vmax_hwrf','vmax_t0'] # impute and normalize
-fit_resids  = 1
+fit_resids  = 0
 init_vals   = 0
-miss_ind    = 1
-impute      = 1
-lead_times  = [3*(x+1) for x in range(16)]
+miss_ind    = 0
+impute      = 0
+lead_times  = [3] #[3*(x+1) for x in range(16)]
 epochs      = 20
 batch_size  = 15
 cost_fn     = 'mean_squared_error'
@@ -40,21 +39,28 @@ def create_model(p):
     model.compile(loss=cost_fn, optimizer='adam')
     return model
 
-#def create_model(p_essential,p_droppable):
-#    essential_ft = Input((p_essential,))
-#    droppable_ft = Input((p_droppable,))
-#
-#    dropped = Dropout(0.2)(droppable_ft) # % of features dropped
-#    completeInput = Concatenate()([essential_ft,droppable_ft])        
-#
-#    layer_1 = Dense(1000,kernel_initializer='normal'
-#                    ,activation='sigmoid')(completeInput)
-#    layer_2 = Dense(30, kernel_initializer='normal', activation='relu')(layer_1)
-#    output = Dense(1, kernel_initializer='normal',activation='linear')(layer_2)
-#
-#    model = Model([essential_ft,droppable_ft],output)
-#    model.compile(loss=cost_fn, optimizer='adam')
-#    return model
+#groups related features before combining
+def grouped_model(feature_groups,scale): # scale determines # of interactions
+    input_groups = []
+    layer_1_grouped = []
+    i = 0
+    for g in feature_groups:
+        input_groups.append(Input(len(g),))
+        layer_1_grouped.append(Dense(np.ceil(scale*len(g))
+                    ,kernel_initializer='normal'
+                    ,activation='sigmoid') (input_groups[i]))
+        i=i+1
+    
+    layer_2_dense = Concatenate()(layer_1_grouped)        
+    layer_3 = Dense(1000,kernel_initializer='normal'
+                    ,activation='sigmoid')(layer_2_dense)
+    layer_4 = Dense(30, kernel_initializer='normal'
+                    , activation='relu')(layer_3)
+    output = Dense(1, kernel_initializer='normal',activation='linear')(layer_4)
+
+    model = Model(input_groups,output)
+    model.compile(loss=cost_fn, optimizer='adam')
+    return model
 
 
 def s_print(str1,str2,total_length=75):
@@ -75,9 +81,13 @@ def print_settings():
     s_print('Lead times:',str(lead_times))
     
     
-def normalize_features(df,feature_list,test_pt):
+def normalize_features(df,feature_list,test_pt=-1):
+    if test_pt != -1:
+        training_obs = df.partition != test_pt
+    else:
+        training_obs = pd.Series(np.ones(len(df)))
     for ft in feature_list:
-         train_data  = df.loc[(df[ft]!=-9999) & (df.partition != test_pt),ft]
+         train_data  = df.loc[(df[ft]!=-9999) & training_obs,ft]
          df[ft+'_n'] = ( ((df[ft]-train_data.mean())/train_data.std())*
                         (df[ft] != -9999).astype(int) ) # norm. non-missing
 
@@ -252,9 +262,9 @@ hf_raw = pd.read_csv(wk_dir+filename,index_col=0,parse_dates=['date'])
 hf=hf_raw[(hf_raw.vmax != -9999) & (hf_raw['vmax_'+competitor] != -9999)]
 hf=hf[hf.lead_time.isin(lead_times)]
 
-if len(lead_times) > 1:
-    for lt in lead_times:
-        ft_ready = ft_ready + ['lead_time_'+str(lt)]
+#if len(lead_times) > 1:
+#    for lt in lead_times:
+#        ft_ready = ft_ready + ['lead_time_'+str(lt)]
 
 base_vars = list(hf.loc[1:2,'V1':'V62'])
 ft_to_impute = base_vars+ ft_to_imp + (
@@ -266,10 +276,13 @@ nn_model.save_weights(wk_dir+'nn_initial_weights.h5')
 ### EXECUTE ###
 
 #bootstrap_results = bootstrap(3)
-hf = single_run(hf)
+#hf = single_run(hf)
 #results = perturbed_runs(hf,'vmax_t0',[0.5*x for x in range(20)],'ivcn') 
-
 #res = multi_run(hf,lead_times)
 
+normalize_features(hf,['V62'])
+
+hf['V62_adj']=np.log(hf.V62_n+1+np.abs(hf.V62_n.min()))
+
 #res.to_csv(path_or_buf=wk_dir+'1_model_preds_separate.csv',index=False)
-hf.to_csv(path_or_buf=wk_dir+'1_model_preds.csv',index=True) 
+#hf.to_csv(path_or_buf=wk_dir+'1_model_preds.csv',index=True) 
