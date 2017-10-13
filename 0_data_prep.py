@@ -1,6 +1,6 @@
 import pandas as pd
 
-wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\"
+wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2017_10_12\\"
 file_1     = 'atlantic_dataset.csv'
 file_2     = 'eastern_dataset.csv'
 
@@ -12,10 +12,11 @@ col_names  = {'Unnamed: 0':'orig_id'
              ,'V66':'date'    
              ,'V67':'lead_time'
              ,'V68':'orig_storm_id'
-             ,'V69':'vmax'}
+             ,'V69':'vmax_op'
+             ,'V70':'vmax'}
 
-col_order  = ['storm_id','lead_time','date','vmax_t0','vmax','vmax_nhc',
-              'vmax_ivcn','vmax_hwrf','orig_storm_id','dataset'
+col_order  = ['storm_id','lead_time','date','vmax','vmax_op',
+              'vmax_nhc','vmax_ivcn','vmax_hwrf','orig_storm_id','dataset'
               ,'dataset_ind']
 
 def single_import(filepath,dataset_label,id_num):        
@@ -34,7 +35,7 @@ def single_import(filepath,dataset_label,id_num):
     tmp.rename(columns=col_names, inplace=True)
         
     # t_0 predictions
-    predictors = list(tmp)[1:63] + ['vmax','vmax_hwrf']
+    predictors = list(tmp)[1:63] + ['vmax_op','vmax_hwrf']
     current= tmp.loc[tmp.lead_time == 0,['storm_id','date']+predictors]
     tmp=tmp.merge(current,on=['storm_id','date']
                 ,how='left',suffixes=('','_t0'))

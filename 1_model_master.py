@@ -8,24 +8,24 @@ from keras.layers import Input,Dense,Concatenate
 import datetime
 
 ### PROGRAM PARAMETERS ###
-wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\"
+wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2017_10_12\\"
 filename   = '0_clean_data.csv'
 print_work = 0
 rand_seed  = 46
 
 ### MODEL PARAMETERS ###
 ft_ready    = ['dataset_ind'] # no processing
-ft_to_norm  = [] # normalize only
-ft_to_imp   = ['vmax_hwrf','vmax_t0'] # impute and normalize
+ft_to_norm  = ['vmax_op_t0'] # normalize only
+ft_to_imp   = ['vmax_hwrf'] #,'vmax_op_t0'] # impute and normalize
 fit_resids  = 0
 init_vals   = 0
-miss_ind    = 0
+miss_ind    = 1
 impute      = 0
 lead_times  = [3] #[3*(x+1) for x in range(16)]
-epochs      = 20
-batch_size  = 15
+epochs      = 25
+batch_size  = 5
 cost_fn     = 'mean_squared_error'
-competitor  = 'ivcn'
+competitor  = 'nhc'
 response    = 'vmax'
 
 ### FUNCTIONS ###
@@ -41,7 +41,7 @@ def create_model(p):
 
 #groups related features before combining
 def grouped_model(feature_groups,scale): # scale determines # of interactions
-    input_groups = []
+    input_groups = [] # groups of features to input
     layer_1_grouped = []
     i = 0
     for g in feature_groups:
@@ -259,7 +259,7 @@ def sum_results(df,competitor):
 ### PREP ###
 np.random.seed(rand_seed)
 hf_raw = pd.read_csv(wk_dir+filename,index_col=0,parse_dates=['date']) 
-hf=hf_raw[(hf_raw.vmax != -9999) & (hf_raw['vmax_'+competitor] != -9999)]
+hf=hf_raw[(hf_raw.vmax != -9999) & (hf_raw['vmax_'+competitor] != -9999) & (hf_raw['vmax_op_t0'] != -9999)]
 hf=hf[hf.lead_time.isin(lead_times)]
 
 #if len(lead_times) > 1:
@@ -276,13 +276,14 @@ nn_model.save_weights(wk_dir+'nn_initial_weights.h5')
 ### EXECUTE ###
 
 #bootstrap_results = bootstrap(3)
-#hf = single_run(hf)
+hf = single_run(hf)
+
 #results = perturbed_runs(hf,'vmax_t0',[0.5*x for x in range(20)],'ivcn') 
 #res = multi_run(hf,lead_times)
 
-normalize_features(hf,['V62'])
-
-hf['V62_adj']=np.log(hf.V62_n+1+np.abs(hf.V62_n.min()))
+#normalize_features(hf,['V62'])
+#
+#hf['V62_adj']=np.log(hf.V62_n+1+np.abs(hf.V62_n.min()))
 
 #res.to_csv(path_or_buf=wk_dir+'1_model_preds_separate.csv',index=False)
 #hf.to_csv(path_or_buf=wk_dir+'1_model_preds.csv',index=True) 
