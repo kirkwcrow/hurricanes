@@ -11,7 +11,7 @@ n = 500
 p = 4
 g = 3
 
-n_epochs = 100
+n_epochs = 600
 verb = 0
 
 # FUNCTIONS
@@ -67,7 +67,7 @@ def grouped_model(feature_groups,scale): # scale determines # of interactions
 np.random.seed(47)
 df = build_data(100,p,g,0.2)
 df.to_clipboard()
-features = list(df)[0:p*g+1]
+features = list(df)[1:p*g+1] #list(df)[0:p*g+1]
 X = df.loc[df.test == 0,features].values
 Y = df.loc[df.test == 0]['y'].values
 X_2 = df.loc[df.test,features].values
@@ -75,14 +75,14 @@ Y_2 = df.loc[df.test]['y'].values
 
 # GROUPED NEURAL NET
 
-ft_groups = [[0],[1,2,3,4],[5,6,7,8],[9,10,11,12]]
+ft_groups = [[1,2,3,4],[5,6,7,8],[9,10,11,12]]
 inputs_train = []
 inputs_all   = []
 for gp in ft_groups:
     inputs_train.append(df.loc[df.test==0][gp].values)
     inputs_all.append(df[gp].values)
     
-nn = grouped_model(ft_groups,5)
+nn = grouped_model(ft_groups,8)
 nn.fit(inputs_train,Y,epochs=n_epochs,batch_size=15,verbose=verb) #,validation_data=(inputs_all,Y_2))
 df['pred'] =nn.predict_on_batch(inputs_all)
 df['abs_err']=np.abs(df['pred']-df['y'])
@@ -97,3 +97,6 @@ df['pred']=nn_simple.predict(df[features].values)
 df['abs_err']=np.abs(df['pred']-df['y'])
 
 print(df.loc[df.test,'abs_err'].mean())
+
+#nn.summary()
+#nn_simple.summary()
