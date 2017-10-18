@@ -2,9 +2,9 @@ import numpy as np
 import pandas as pd
 from scipy.stats import t
 from sklearn.linear_model import LinearRegression
-from keras.models import Model
-from keras.models import Sequential
-from keras.layers import Input,Dense,Concatenate
+from keras.models import Model,Sequential
+from keras.layers.normalization import BatchNormalization
+from keras.layers import Input,Dense,Concatenate,Dropout
 import datetime
 
 ### PROGRAM PARAMETERS ###
@@ -17,13 +17,13 @@ rand_seed  = 46
 ft_ready    = ['dataset_ind'] # no processing
 ft_to_norm  = ['vmax_op_t0'] # normalize only
 ft_to_imp   = ['vmax_hwrf'] #,'vmax_op_t0'] # impute and normalize
-fit_resids  = 0
+fit_resids  = 1
 init_vals   = 0
 miss_ind    = 1
 impute      = 0
 lead_times  = [3] #[3*(x+1) for x in range(16)]
-epochs      = 25
-batch_size  = 5
+epochs      = 40
+batch_size  = 30
 cost_fn     = 'mean_squared_error'
 competitor  = 'nhc'
 response    = 'vmax'
@@ -39,26 +39,23 @@ def create_model(p):
     model.compile(loss=cost_fn, optimizer='adam')
     return model
 
-#groups related features before combining
-def grouped_model(feature_groups,scale): # scale determines # of interactions
-    input_groups = [] # groups of features to input
-    layer_1_grouped = []
-    i = 0
-    for g in feature_groups:
-        input_groups.append(Input(len(g),))
-        layer_1_grouped.append(Dense(np.ceil(scale*len(g))
-                    ,kernel_initializer='normal'
-                    ,activation='sigmoid') (input_groups[i]))
-        i=i+1
-    
-    layer_2_dense = Concatenate()(layer_1_grouped)        
-    layer_3 = Dense(1000,kernel_initializer='normal'
-                    ,activation='sigmoid')(layer_2_dense)
-    layer_4 = Dense(30, kernel_initializer='normal'
-                    , activation='relu')(layer_3)
-    output = Dense(1, kernel_initializer='normal',activation='linear')(layer_4)
-
-    model = Model(input_groups,output)
+def create_bn_model(p):
+    d_pct = 0.5
+    l_size = 250
+    model = Sequential()
+    model.add(Dense(l_size, input_dim=p, kernel_initializer='normal'
+                    , activation='relu'))
+    model.add(BatchNormalization())
+    model.add(Dropout(d_pct))
+    model.add(Dense(l_size, kernel_initializer='normal',activation='relu'))
+    model.add(BatchNormalization())
+    model.add(Dropout(d_pct))
+    model.add(Dense(l_size, kernel_initializer='normal',activation='relu'))
+    model.add(BatchNormalization())
+    model.add(Dropout(d_pct))
+    model.add(Dense(l_size, kernel_initializer='normal',activation='relu'))
+    model.add(Dropout(d_pct))
+    model.add(Dense(1, kernel_initializer='normal',activation='linear'))
     model.compile(loss=cost_fn, optimizer='adam')
     return model
 
@@ -199,7 +196,7 @@ def bootstrap(df,n):
     return res
 
 def single_run(df):
-    df = kfold_partition(df,'storm_id',10)
+    df = kfold_partition(df,'storm_id',10) # ONE PARTITION
     apply_model(df,nn_model,ft_to_impute,ft_to_norm,ft_ready,
                 response,epochs,batch_size)
     print_settings()
@@ -270,7 +267,7 @@ base_vars = list(hf.loc[1:2,'V1':'V62'])
 ft_to_impute = base_vars+ ft_to_imp + (
         init_vals*list(hf.loc[1:2,'V1_t0':'V62_t0']) )
 p = (1+miss_ind)*len(ft_to_impute)+len(ft_to_norm)+len(ft_ready)
-nn_model = create_model(p)
+nn_model = create_bn_model(p)
 nn_model.save_weights(wk_dir+'nn_initial_weights.h5')
 
 ### EXECUTE ###
