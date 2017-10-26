@@ -1,8 +1,8 @@
 import pandas as pd
 
-wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2017_10_12\\"
-file_1     = 'atlantic_dataset.csv'
-file_2     = 'eastern_dataset.csv'
+wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2017_10_25\\"
+file_1     = 'atlantic_dataset_adecks.csv'
+file_2     = 'eastern_dataset_adecks.csv'
 
 col_names  = {'Unnamed: 0':'orig_id'
              ,'V61':'vmax_ivcn'

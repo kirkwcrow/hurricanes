@@ -267,7 +267,7 @@ base_vars = list(hf.loc[1:2,'V1':'V62'])
 ft_to_impute = base_vars+ ft_to_imp + (
         init_vals*list(hf.loc[1:2,'V1_t0':'V62_t0']) )
 p = (1+miss_ind)*len(ft_to_impute)+len(ft_to_norm)+len(ft_ready)
-nn_model = create_bn_model(p)
+nn_model = create_model(p)
 nn_model.save_weights(wk_dir+'nn_initial_weights.h5')
 
 ### EXECUTE ###

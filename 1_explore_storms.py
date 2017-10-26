@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 ### PROGRAM PARAMETERS ###
-wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2017_10_12\\"
+wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2017_10_25\\"
 filename   = '0_clean_data.csv'
 core_vars  = ['storm_id','lead_time','date','vmax','vmax_ivcn','vmax_pred'
               ,'vmax_hwrf']
