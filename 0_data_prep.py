@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2017_10_25\\"
 file_1     = 'atlantic_dataset_adecks.csv'
@@ -19,6 +20,14 @@ col_order  = ['storm_id','lead_time','date','vmax','vmax_op',
               'vmax_nhc','vmax_ivcn','vmax_hwrf','orig_storm_id','dataset'
               ,'dataset_ind']
 
+def cube_scaler(x):
+    if x == -9999:
+        return x
+    else:
+        # np.log(hf.V62_n+1+np.abs(hf.V62_n.min()))
+        return np.sign(x)*np.power(np.abs(x),1/3)   
+    
+
 def single_import(filepath,dataset_label,id_num):        
     tmp = pd.read_csv(filepath,dtype={'Unnamed: 0':'int','V68':'int'})
     del tmp['V54']
@@ -26,6 +35,15 @@ def single_import(filepath,dataset_label,id_num):
     tmp['storm_id'] = tmp.V68 * 10 + id_num # unique storm id 
     tmp['dataset'] = dataset_label
     tmp['dataset_ind'] = id_num
+    tmp['land_t'] = tmp.V62.apply(cube_scaler)
+    for var in ['V6','V8']: # angle variables
+        miss = (tmp[var] == -9999).astype(int)
+        tmp[var+'_x'] = ((1-miss)*tmp[var].apply(lambda x: np.cos(x*np.pi/180))
+                         +miss*(-9999))
+        tmp[var+'_y'] = ((1-miss)*tmp[var].apply(lambda x: np.sin(x*np.pi/180))
+                         +miss*(-9999))
+        del tmp[var]
+    
     cols = list(tmp)
     
     # switch IVCN and V61
@@ -35,12 +53,16 @@ def single_import(filepath,dataset_label,id_num):
     tmp.rename(columns=col_names, inplace=True)
         
     # t_0 predictions
-    predictors = list(tmp)[1:63] + ['vmax_op','vmax_hwrf']
+    predictors = list(tmp)[1:60] + ['land_t','vmax_op','vmax_hwrf'
+                     ,'V6_x','V6_y','V8_x','V8_y']
+    print(predictors)
     current= tmp.loc[tmp.lead_time == 0,['storm_id','date']+predictors]
     tmp=tmp.merge(current,on=['storm_id','date']
                 ,how='left',suffixes=('','_t0'))
 
     # missing indicators
+    predictors.remove('V6_x')
+    predictors.remove('V8_x')
     for ft in predictors + [a+'_t0' for a in predictors]:
         if len(tmp[ft].unique()) == 1:
             del tmp[ft]

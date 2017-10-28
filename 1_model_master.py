@@ -8,20 +8,20 @@ from keras.layers import Input,Dense,Concatenate,Dropout
 import datetime
 
 ### PROGRAM PARAMETERS ###
-wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2017_10_12\\"
+wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2017_10_25\\"
 filename   = '0_clean_data.csv'
 print_work = 0
 rand_seed  = 46
 
 ### MODEL PARAMETERS ###
-ft_ready    = ['dataset_ind'] # no processing
+ft_ready    = ['dataset_ind','V6_x','V6_y','V8_x','V8_y','V6_y_miss','V8_y_miss'] # no processing
 ft_to_norm  = ['vmax_op_t0'] # normalize only
 ft_to_imp   = ['vmax_hwrf'] #,'vmax_op_t0'] # impute and normalize
 fit_resids  = 1
 init_vals   = 0
 miss_ind    = 1
 impute      = 0
-lead_times  = [3] #[3*(x+1) for x in range(16)]
+lead_times  = [3*(x+1) for x in range(16)]
 epochs      = 40
 batch_size  = 30
 cost_fn     = 'mean_squared_error'
@@ -196,11 +196,12 @@ def bootstrap(df,n):
     return res
 
 def single_run(df):
-    df = kfold_partition(df,'storm_id',10) # ONE PARTITION
+    df=df[df.lead_time.isin(lead_times)]
+    df = kfold_partition(df,'storm_id',10)
     apply_model(df,nn_model,ft_to_impute,ft_to_norm,ft_ready,
                 response,epochs,batch_size)
     print_settings()
-    sum_results(df,competitor)
+    print(sum_results(df,competitor))
     return df
 
 #  compares results of model upon perturbation of a feature 
@@ -223,49 +224,56 @@ def perturbed_runs(df,feature,std_list,competitor=''):
     return results
 
 def multi_run(df,lead_times):
-    results = []
+    df_all = kfold_partition(df,'storm_id',10)
+    df_preds = pd.DataFrame()
     for lt in lead_times:
         print('Lead time: '+str(lt))
-        tmp = hf[hf.lead_time == lt]
-        tmp=kfold_partition(tmp,'storm_id',10) 
-        mae = apply_model(tmp,nn_model,ft_to_impute,ft_to_norm,ft_ready,
+        tmp = df_all[df_all.lead_time == lt].copy()
+        apply_model(tmp,nn_model,ft_to_impute,ft_to_norm,ft_ready,
                         response,epochs,batch_size)
-        results.append((lt,mae))
-    return pd.DataFrame(data=results,columns=['lead_time','pred_sep_mae'])
+        df_preds = df_preds.append(tmp)
+    summary = sum_results(df_preds,competitor)
+    print(summary[summary.index == 'all'])
+    return df_preds
 
 def sum_results(df,competitor):
     df['abs_err_'+competitor] = np.abs(df['vmax_'+competitor]-df[response])
     df['abs_err_pred']        = np.abs(df[response+'_pred']-df[response])
     res = []
     parts = list(range(df.partition.max()+1))+['all']
-    for pt in parts:
-        if pt == 'all': rows = (df.partition > -1)
-        else:           rows = (df.partition == pt)
-        n_obs = rows.sum()
-        test_storms = len(df[rows]['storm_id'].unique())
-        val_mae  = df.loc[rows,'abs_err_pred'].mean()
-        comp_mae = df.loc[rows,'abs_err_'+competitor].mean()
-        res.append((n_obs,test_storms,val_mae,comp_mae,val_mae-comp_mae,
-                    (val_mae-comp_mae)/comp_mae))
-    result = pd.DataFrame(res,index=parts,columns=['n','n_storms','val_mae',
+    lead_times = df.lead_time.unique()
+    for lt in lead_times:
+        for pt in parts:
+            if pt == 'all': rows = (df.partition > -1) & (df.lead_time == lt)
+            else:           rows = (df.partition == pt) & (df.lead_time == lt)
+            n_obs = rows.sum()
+            test_storms = len(df[rows]['storm_id'].unique())
+            val_mae  = df.loc[rows,'abs_err_pred'].mean()
+            comp_mae = df.loc[rows,'abs_err_'+competitor].mean()
+            res.append((n_obs,lt,test_storms,val_mae,comp_mae,val_mae-comp_mae,
+                        (val_mae-comp_mae)/comp_mae))
+    
+    result = pd.DataFrame(res,index=parts*len(lead_times)
+                          ,columns=['n','lead_time','n_storms','val_mae',
                           competitor+'_mae','difference','pct_diff'])
-    print('\n'+str(result))
     return result
 
 
 ### PREP ###
 np.random.seed(rand_seed)
 hf_raw = pd.read_csv(wk_dir+filename,index_col=0,parse_dates=['date']) 
-hf=hf_raw[(hf_raw.vmax != -9999) & (hf_raw['vmax_'+competitor] != -9999) & (hf_raw['vmax_op_t0'] != -9999)]
-hf=hf[hf.lead_time.isin(lead_times)]
+hf=hf_raw[(hf_raw.vmax != -9999) & (hf_raw['vmax_'+competitor] != -9999) 
+         &(hf_raw['vmax_op_t0'] != -9999)]
+hf=hf[hf.lead_time.isin(lead_times+[0])]
 
 #if len(lead_times) > 1:
 #    for lt in lead_times:
 #        ft_ready = ft_ready + ['lead_time_'+str(lt)]
 
-base_vars = list(hf.loc[1:2,'V1':'V62'])
+last_var = 'V62'
+base_vars = list(hf.loc[1:2,'V1':last_var])
 ft_to_impute = base_vars+ ft_to_imp + (
-        init_vals*list(hf.loc[1:2,'V1_t0':'V62_t0']) )
+        init_vals*list(hf.loc[1:2,'V1_t0':last_var+'_t0']) )
 p = (1+miss_ind)*len(ft_to_impute)+len(ft_to_norm)+len(ft_ready)
 nn_model = create_model(p)
 nn_model.save_weights(wk_dir+'nn_initial_weights.h5')
@@ -275,12 +283,11 @@ nn_model.save_weights(wk_dir+'nn_initial_weights.h5')
 #bootstrap_results = bootstrap(3)
 hf = single_run(hf)
 
-#results = perturbed_runs(hf,'vmax_t0',[0.5*x for x in range(20)],'ivcn') 
 #res = multi_run(hf,lead_times)
+#sum_res = sum_results(res,competitor)
+#sum_a = sum_res[sum_res.index=='all']
+#print(sum_a)
+#sum_a.plot(x=['lead_time'],y=['nhc_mae','val_mae'],ylim=0,title='Model MAE by lead time')
 
-#normalize_features(hf,['V62'])
-#
-#hf['V62_adj']=np.log(hf.V62_n+1+np.abs(hf.V62_n.min()))
-
-#res.to_csv(path_or_buf=wk_dir+'1_model_preds_separate.csv',index=False)
+#res.to_csv(path_or_buf=wk_dir+'1_model_preds_combined.csv',index=False)
 #hf.to_csv(path_or_buf=wk_dir+'1_model_preds.csv',index=True) 
