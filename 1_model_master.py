@@ -12,10 +12,11 @@ wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2017_10_25\\"
 filename   = '0_clean_data.csv'
 print_work = 0
 rand_seed  = 46
+n_parts    = 10
 
 ### MODEL PARAMETERS ###
 ft_ready    = ['dataset_ind','V6_x','V6_y','V8_x','V8_y','V6_y_miss','V8_y_miss'] # no processing
-ft_to_norm  = ['vmax_op_t0'] # normalize only
+ft_to_norm  = ['vmax_op_t0','vmax_pred_prev'] # normalize only
 ft_to_imp   = ['vmax_hwrf'] #,'vmax_op_t0'] # impute and normalize
 fit_resids  = 1
 init_vals   = 0
@@ -33,7 +34,6 @@ def create_model(p):
     model = Sequential()
     model.add(Dense(1000, input_dim=p, kernel_initializer='normal'
                     , activation='sigmoid'))
-    #model.add(Dropout(0.2, input_shape=(p,))) # % of features dropped
     model.add(Dense(30, kernel_initializer='normal', activation='relu'))
     model.add(Dense(1, kernel_initializer='normal',activation='linear'))
     model.compile(loss=cost_fn, optimizer='adam')
@@ -59,10 +59,17 @@ def create_bn_model(p):
     model.compile(loss=cost_fn, optimizer='adam')
     return model
 
+def peek(df,varlist=[],nrows=5): # just a quick way to look at the dataframe
+    defaults = ['storm_id','date','lead_time','vmax','vmax_hwrf']
+    print(df[defaults+varlist].head(nrows))
 
 def s_print(str1,str2,total_length=75):
-    print(str1+'.'*(total_length - len(str1+str2))+str2)
-
+    if len(str1)+len(str2) <= 75:
+        print(str1+'.'*(total_length - len(str1+str2))+str2)
+    else:
+        pt1=(str1+str2)[:total_length]
+        pt2=(str1+str2)[total_length:]
+        print(pt1+'\n'+(total_length-len(pt2))*' '+pt2)
 
 def print_settings():
     print('\n\n'+str(datetime.datetime.now()))
@@ -77,7 +84,6 @@ def print_settings():
     s_print('Imputation:',str(impute))
     s_print('Lead times:',str(lead_times))
     
-    
 def normalize_features(df,feature_list,test_pt=-1):
     if test_pt != -1:
         training_obs = df.partition != test_pt
@@ -87,7 +93,6 @@ def normalize_features(df,feature_list,test_pt=-1):
          train_data  = df.loc[(df[ft]!=-9999) & training_obs,ft]
          df[ft+'_n'] = ( ((df[ft]-train_data.mean())/train_data.std())*
                         (df[ft] != -9999).astype(int) ) # norm. non-missing
-
 
 def impute_features(df,feature_list,features_norm_only,test_pt):
     tmp = df.copy()
@@ -110,13 +115,11 @@ def impute_features(df,feature_list,features_norm_only,test_pt):
         tmp[ft] = (tmp[ft] - train_data.mean())/train_data.std()
         df[ft+'_n'] =  tmp[ft]
 
-
 def kfold_partition(df,grouping_var,k):
     groups=pd.DataFrame(data=df[grouping_var].unique(),columns=[grouping_var])
     groups['partition']=pd.qcut(
             np.random.rand(len(groups)),k,labels=range(k)).codes
     return df.merge(groups,how='left',on=grouping_var)
-
 
 def fit_SLR_hwrf(df,response,test_pt):
     reg = LinearRegression()
@@ -124,22 +127,23 @@ def fit_SLR_hwrf(df,response,test_pt):
             df.loc[df.partition != test_pt,response].values)
     return reg.predict(df['vmax_hwrf'].values.reshape(-1,1))
 
-
 def apply_NN_1pt(df,model,test_pt,features,response,e,b_size): 
-        df_X1 = df.loc[df.partition!=test_pt,features]
-        df_Y1 = df.loc[df.partition!=test_pt,response]
+    df_X1 = df.loc[df.partition!=test_pt,features]
+    df_Y1 = df.loc[df.partition!=test_pt,response]
 
-        df_X2 = df.loc[df.partition==test_pt,features]
-        df_Y2 = df.loc[df.partition==test_pt,response]
+    df_X2 = df.loc[df.partition==test_pt,features]
+    df_Y2 = df.loc[df.partition==test_pt,response]
 
-        model.load_weights(wk_dir+'nn_initial_weights.h5')
-        model.fit(df_X1.values,df_Y1.values,epochs=e,batch_size=b_size
-                  ,validation_data=(df_X2.values,df_Y2.values)
-                  ,verbose=print_work)
-        return model.predict(df_X2.values,batch_size=b_size)
+    model.load_weights(wk_dir+'nn_initial_weights.h5')
+    model.fit(df_X1.values,df_Y1.values,epochs=e,batch_size=b_size
+              ,validation_data=(df_X2.values,df_Y2.values)
+              ,verbose=print_work)
+    return model.predict(df_X2.values,batch_size=b_size)
 
-
-def apply_model(df,model,ft_to_imp,ft_to_norm,ft_ready,response,e,b_size):
+def apply_model(df,model,ft_imp,ft_norm,ft__ready,response,e,b_size):
+    ft_to_imp=cleanse(df,ft_imp)
+    ft_to_norm=cleanse(df,ft_norm)
+    ft_ready=cleanse(df,ft__ready)
     pts = df.partition.unique()
     pts.sort()
     df[response+'_pred'] = np.zeros(len(df))
@@ -169,9 +173,9 @@ def apply_model(df,model,ft_to_imp,ft_to_norm,ft_ready,response,e,b_size):
             preds = [sum(x) for x in zip(nn_preds,test_hwrf_vals)]
         else: preds = nn_preds
         
-        df.loc[df.partition == test_pt,response+'_pred'] = preds   
+        df.loc[df.partition == test_pt,response+'_pred'] = preds
+    print('')
     return np.abs(df[response+'_pred'] - df[response]).mean() # MAE
-
 
 def bsample(df,by_id):
     groups=pd.DataFrame(data=df[by_id].unique(),columns=[by_id])
@@ -182,7 +186,7 @@ def bootstrap(df,n):
     res = []
     for i in range(n):
         df_bs = bsample(df,'storm_id')
-        df_bs=kfold_partition(df_bs,'storm_id',10) 
+        df_bs=kfold_partition(df_bs,'storm_id',n_parts) 
         mae = apply_model(df_bs,nn_model,ft_to_impute,ft_to_norm,ft_ready,
                       response,epochs,batch_size)
         res.append(mae)
@@ -196,12 +200,10 @@ def bootstrap(df,n):
     return res
 
 def single_run(df):
-    df=df[df.lead_time.isin(lead_times)]
-    df = kfold_partition(df,'storm_id',10)
+    df = kfold_partition(df,'storm_id',n_parts)
     apply_model(df,nn_model,ft_to_impute,ft_to_norm,ft_ready,
                 response,epochs,batch_size)
     print_settings()
-    print(sum_results(df,competitor))
     return df
 
 #  compares results of model upon perturbation of a feature 
@@ -210,7 +212,7 @@ def perturbed_runs(df,feature,std_list,competitor=''):
     for std in std_list:
         df_p = df.copy()
         df_p['vmax_t0'] = df_p['vmax_t0']+np.random.randn(len(df_p))*std
-        df_p=kfold_partition(df_p,'storm_id',10) 
+        df_p=kfold_partition(df_p,'storm_id',n_parts) 
         mae = apply_model(df_p,nn_model,ft_to_impute,ft_to_norm,ft_ready,
                         response,epochs,batch_size)        
         res.append((std,mae))
@@ -223,20 +225,39 @@ def perturbed_runs(df,feature,std_list,competitor=''):
                  title='NN model MAE by perturbation of '+feature)
     return results
 
+def cleanse(df,ft_list): # delete features with 1 unique value
+    ft_clean = []
+    for ft in ft_list:
+        if len(df[ft].unique())>1:
+            ft_clean.append(ft)
+        else:
+            print('Note: '+ft+' removed (no unique values).')
+    return ft_clean
+
+def get_next_dataframe(df_orig,df_preds,lead_time): # for iterated predictions
+    tmp = df_orig[df_orig['lead_time'] == lead_time].copy()
+    if lead_time == 3:
+        tmp['vmax_pred_prev'] = tmp['vmax_op_t0']
+    else:
+        past_pred = df_preds.loc[df_preds['lead_time']==lead_time-3
+               ,['storm_id','date','vmax_pred']].copy()
+        past_pred.rename(columns={'vmax_pred':'vmax_pred_prev'},inplace=True)
+        tmp = tmp.merge(past_pred,how='left',on=['storm_id','date'])
+        tmp.loc[tmp.vmax_pred_prev.isnull(),'vmax_pred_prev']=-9999 # WHY DO MISSING VALUES HAPPEN
+    return tmp
+
 def multi_run(df,lead_times):
-    df_all = kfold_partition(df,'storm_id',10)
+    df_all = kfold_partition(df,'storm_id',n_parts)
     df_preds = pd.DataFrame()
     for lt in lead_times:
         print('Lead time: '+str(lt))
-        tmp = df_all[df_all.lead_time == lt].copy()
+        tmp = get_next_dataframe(df_all,df_preds,lt)
         apply_model(tmp,nn_model,ft_to_impute,ft_to_norm,ft_ready,
                         response,epochs,batch_size)
         df_preds = df_preds.append(tmp)
-    summary = sum_results(df_preds,competitor)
-    print(summary[summary.index == 'all'])
     return df_preds
 
-def sum_results(df,competitor):
+def all_results(df,competitor):
     df['abs_err_'+competitor] = np.abs(df['vmax_'+competitor]-df[response])
     df['abs_err_pred']        = np.abs(df[response+'_pred']-df[response])
     res = []
@@ -258,13 +279,21 @@ def sum_results(df,competitor):
                           competitor+'_mae','difference','pct_diff'])
     return result
 
+def sum_results(df,competitor,plot_sub=''):
+    all_res = all_results(df,competitor)
+    sum_res = all_res[all_res.index=='all']
+    print(sum_res)
+    if len(df.lead_time.unique()) > 1:
+        sum_res.plot(x=['lead_time'],y=[competitor+'_mae','val_mae']
+            ,ylim=0,title='Model MAE by lead time\n'+plot_sub)
+    return sum_res
 
 ### PREP ###
 np.random.seed(rand_seed)
 hf_raw = pd.read_csv(wk_dir+filename,index_col=0,parse_dates=['date']) 
 hf=hf_raw[(hf_raw.vmax != -9999) & (hf_raw['vmax_'+competitor] != -9999) 
          &(hf_raw['vmax_op_t0'] != -9999)]
-hf=hf[hf.lead_time.isin(lead_times+[0])]
+hf=hf[hf.lead_time.isin(lead_times)]
 
 #if len(lead_times) > 1:
 #    for lt in lead_times:
@@ -281,13 +310,10 @@ nn_model.save_weights(wk_dir+'nn_initial_weights.h5')
 ### EXECUTE ###
 
 #bootstrap_results = bootstrap(3)
-hf = single_run(hf)
+#hf = single_run(hf)
 
-#res = multi_run(hf,lead_times)
-#sum_res = sum_results(res,competitor)
-#sum_a = sum_res[sum_res.index=='all']
-#print(sum_a)
-#sum_a.plot(x=['lead_time'],y=['nhc_mae','val_mae'],ylim=0,title='Model MAE by lead time')
+hf = multi_run(hf,lead_times)
+res=sum_results(hf,competitor,'(separate,shallow network, includes previous prediction)')
 
 #res.to_csv(path_or_buf=wk_dir+'1_model_preds_combined.csv',index=False)
 #hf.to_csv(path_or_buf=wk_dir+'1_model_preds.csv',index=True) 
