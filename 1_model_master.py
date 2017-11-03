@@ -10,18 +10,20 @@ import datetime
 ### PROGRAM PARAMETERS ###
 wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2017_10_25\\"
 filename   = '0_clean_data.csv'
+plot_subti = 'shallow separate'
 print_work = 0
 rand_seed  = 46
 n_parts    = 10
 
 ### MODEL PARAMETERS ###
 ft_ready    = ['dataset_ind','V6_x','V6_y','V8_x','V8_y','V6_y_miss','V8_y_miss'] # no processing
-ft_to_norm  = ['vmax_op_t0','vmax_pred_prev'] # normalize only
+ft_to_norm  = ['vmax_op_t0']#,'n_miss']#,'vmax_pred_prev'] # normalize only
 ft_to_imp   = ['vmax_hwrf'] #,'vmax_op_t0'] # impute and normalize
-fit_resids  = 1
+fit_resids  = 0
 init_vals   = 0
-miss_ind    = 1
+miss_ind    = 0
 impute      = 0
+lead_t_ind  = 0
 lead_times  = [3*(x+1) for x in range(16)]
 epochs      = 40
 batch_size  = 30
@@ -32,7 +34,7 @@ response    = 'vmax'
 ### FUNCTIONS ###
 def create_model(p):
     model = Sequential()
-    model.add(Dense(1000, input_dim=p, kernel_initializer='normal'
+    model.add(Dense(200, input_dim=p, kernel_initializer='normal'
                     , activation='sigmoid'))
     model.add(Dense(30, kernel_initializer='normal', activation='relu'))
     model.add(Dense(1, kernel_initializer='normal',activation='linear'))
@@ -40,14 +42,11 @@ def create_model(p):
     return model
 
 def create_bn_model(p):
-    d_pct = 0.5
+    d_pct = 0.3
     l_size = 250
     model = Sequential()
     model.add(Dense(l_size, input_dim=p, kernel_initializer='normal'
                     , activation='relu'))
-    model.add(BatchNormalization())
-    model.add(Dropout(d_pct))
-    model.add(Dense(l_size, kernel_initializer='normal',activation='relu'))
     model.add(BatchNormalization())
     model.add(Dropout(d_pct))
     model.add(Dense(l_size, kernel_initializer='normal',activation='relu'))
@@ -259,6 +258,7 @@ def multi_run(df,lead_times):
 
 def all_results(df,competitor):
     df['abs_err_'+competitor] = np.abs(df['vmax_'+competitor]-df[response])
+    df['abs_err_hwrf']        = np.abs(df['vmax_hwrf']     -df[response])
     df['abs_err_pred']        = np.abs(df[response+'_pred']-df[response])
     res = []
     parts = list(range(df.partition.max()+1))+['all']
@@ -270,13 +270,16 @@ def all_results(df,competitor):
             n_obs = rows.sum()
             test_storms = len(df[rows]['storm_id'].unique())
             val_mae  = df.loc[rows,'abs_err_pred'].mean()
+            hwrf_mae = df.loc[rows,'abs_err_hwrf'].mean()
             comp_mae = df.loc[rows,'abs_err_'+competitor].mean()
-            res.append((n_obs,lt,test_storms,val_mae,comp_mae,val_mae-comp_mae,
+            res.append((n_obs,lt,test_storms,val_mae,hwrf_mae
+                        ,comp_mae,val_mae-comp_mae,
                         (val_mae-comp_mae)/comp_mae))
     
     result = pd.DataFrame(res,index=parts*len(lead_times)
-                          ,columns=['n','lead_time','n_storms','val_mae',
-                          competitor+'_mae','difference','pct_diff'])
+                          ,columns=['n','lead_time','n_storms','val_mae'
+                                    ,'hwrf_mae',
+                                    competitor+'_mae','difference','pct_diff'])
     return result
 
 def sum_results(df,competitor,plot_sub=''):
@@ -284,7 +287,7 @@ def sum_results(df,competitor,plot_sub=''):
     sum_res = all_res[all_res.index=='all']
     print(sum_res)
     if len(df.lead_time.unique()) > 1:
-        sum_res.plot(x=['lead_time'],y=[competitor+'_mae','val_mae']
+        sum_res.plot(x=['lead_time'],y=[competitor+'_mae','val_mae','hwrf_mae']
             ,ylim=0,title='Model MAE by lead time\n'+plot_sub)
     return sum_res
 
@@ -295,9 +298,9 @@ hf=hf_raw[(hf_raw.vmax != -9999) & (hf_raw['vmax_'+competitor] != -9999)
          &(hf_raw['vmax_op_t0'] != -9999)]
 hf=hf[hf.lead_time.isin(lead_times)]
 
-#if len(lead_times) > 1:
-#    for lt in lead_times:
-#        ft_ready = ft_ready + ['lead_time_'+str(lt)]
+if lead_t_ind and len(lead_times) > 1:
+    for lt in lead_times:
+        ft_ready = ft_ready + ['lead_time_'+str(lt)]
 
 last_var = 'V62'
 base_vars = list(hf.loc[1:2,'V1':last_var])
@@ -313,7 +316,8 @@ nn_model.save_weights(wk_dir+'nn_initial_weights.h5')
 #hf = single_run(hf)
 
 hf = multi_run(hf,lead_times)
-res=sum_results(hf,competitor,'(separate,shallow network, includes previous prediction)')
+print_settings()
+res=sum_results(hf,competitor,plot_subti)
 
 #res.to_csv(path_or_buf=wk_dir+'1_model_preds_combined.csv',index=False)
 #hf.to_csv(path_or_buf=wk_dir+'1_model_preds.csv',index=True) 

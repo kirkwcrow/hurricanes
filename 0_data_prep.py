@@ -55,7 +55,6 @@ def single_import(filepath,dataset_label,id_num):
     # t_0 predictions
     predictors = list(tmp)[1:60] + ['land_t','vmax_op','vmax_hwrf'
                      ,'V6_x','V6_y','V8_x','V8_y']
-    print(predictors)
     current= tmp.loc[tmp.lead_time == 0,['storm_id','date']+predictors]
     tmp=tmp.merge(current,on=['storm_id','date']
                 ,how='left',suffixes=('','_t0'))
@@ -63,12 +62,13 @@ def single_import(filepath,dataset_label,id_num):
     # missing indicators
     predictors.remove('V6_x')
     predictors.remove('V8_x')
+    tmp['n_miss'] = 0
     for ft in predictors + [a+'_t0' for a in predictors]:
         if len(tmp[ft].unique()) == 1:
             del tmp[ft]
         else:
             tmp[ft+'_miss'] = (tmp[ft] == -9999).astype(int)
-    
+            tmp['n_miss'] = tmp['n_miss'] + tmp[ft+'_miss']
     # lead time indicators
     for lt in tmp.lead_time.unique():
         tmp['lead_time_'+str(lt)] = (tmp['lead_time'] == lt).astype(int)
