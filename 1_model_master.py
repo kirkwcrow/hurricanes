@@ -5,6 +5,7 @@ from sklearn.linear_model import LinearRegression
 from keras.models import Model,Sequential
 from keras.layers.normalization import BatchNormalization
 from keras.layers import Input,Dense,Concatenate,Dropout
+from keras import regularizers
 import datetime
 
 ### PROGRAM PARAMETERS ###
@@ -16,8 +17,8 @@ rand_seed  = 46
 n_parts    = 10
 
 ### MODEL PARAMETERS ###
-ft_ready    = ['dataset_ind','V6_x','V6_y','V8_x','V8_y','V6_y_miss','V8_y_miss'] # no processing
-ft_to_norm  = ['vmax_op_t0']#,'n_miss']#,'vmax_pred_prev'] # normalize only
+ft_ready    = ['V6_x','V6_y','V8_x','V8_y','V6_y_miss','V8_y_miss','dataset_ind']  #  no processing
+ft_to_norm  = ['vmax_op_t0']#,'vmax_pred_prev'] # normalize only
 ft_to_imp   = ['vmax_hwrf'] #,'vmax_op_t0'] # impute and normalize
 fit_resids  = 0
 init_vals   = 0
@@ -34,10 +35,13 @@ response    = 'vmax'
 ### FUNCTIONS ###
 def create_model(p):
     model = Sequential()
-    model.add(Dense(200, input_dim=p, kernel_initializer='normal'
-                    , activation='sigmoid'))
-    model.add(Dense(30, kernel_initializer='normal', activation='relu'))
-    model.add(Dense(1, kernel_initializer='normal',activation='linear'))
+    model.add(Dense(1300, input_dim=p, kernel_initializer='normal'
+                    ,activity_regularizer=regularizers.l1(0.001)
+                    ,activation='sigmoid'))
+#    model.add(Dense(30, kernel_initializer='normal', activation='relu'))
+    model.add(Dense(1, kernel_initializer='normal'
+                    ,activity_regularizer=regularizers.l1(0.001)
+                    ,activation='linear'))
     model.compile(loss=cost_fn, optimizer='adam')
     return model
 
@@ -91,7 +95,7 @@ def normalize_features(df,feature_list,test_pt=-1):
     for ft in feature_list:
          train_data  = df.loc[(df[ft]!=-9999) & training_obs,ft]
          df[ft+'_n'] = ( ((df[ft]-train_data.mean())/train_data.std())*
-                        (df[ft] != -9999).astype(int) ) # norm. non-missing
+                        (df[ft] != -9999).astype(int) ) # norm. non-missing  
 
 def impute_features(df,feature_list,features_norm_only,test_pt):
     tmp = df.copy()
@@ -150,12 +154,17 @@ def apply_model(df,model,ft_imp,ft_norm,ft__ready,response,e,b_size):
         print(str(test_pt),end='')
         df_n = df.copy(deep=True)
         
+        # NORMALIZE
+#        resp_min = df[response].min()
+#        resp_max = df[response].max()
+#        df_n[response] = (df_n[response]-resp_min)/(resp_max-resp_min)
+        
         if fit_resids == 1:
             df_n[response+'_slr'] = fit_SLR_hwrf(df_n,response,test_pt)
             df_n['hwrf_resid'] = df_n[response] - df_n[response+'_slr']
             nn_response = 'hwrf_resid'
         else: nn_response = response
-            
+        
         # ------------- prepare features ---------------------------------#
         if impute == 1: impute_features(df_n,ft_to_imp,ft_to_norm,test_pt)
         else: normalize_features(df_n,ft_to_imp+ft_to_norm,test_pt)
@@ -171,6 +180,9 @@ def apply_model(df,model,ft_imp,ft_norm,ft__ready,response,e,b_size):
                                       ,response+'_slr'].values
             preds = [sum(x) for x in zip(nn_preds,test_hwrf_vals)]
         else: preds = nn_preds
+        
+        # NORMALIZE
+#        preds = preds*(resp_max-resp_min)+resp_min
         
         df.loc[df.partition == test_pt,response+'_pred'] = preds
     print('')
@@ -256,6 +268,22 @@ def multi_run(df,lead_times):
         df_preds = df_preds.append(tmp)
     return df_preds
 
+def compare_basins(df,lead_times):
+    print('input length: '+str(len(df)))
+    df_atl = df[df.dataset == 'atlantic'].copy()
+    df_pac = df[df.dataset == 'east_pacific'].copy()
+    atl_res = multi_run(df_atl,lead_times)
+    pac_res = multi_run(df_pac,lead_times)
+    return atl_res.append(pac_res)
+
+def compare_split(df,field,values): ## update this to split dataset <--------------------
+    print('input length: '+str(len(df)))
+    df_atl = df[df[field] == 'atlantic'].copy()
+    df_pac = df[df.dataset == 'east_pacific'].copy()
+    atl_res = multi_run(df_atl,lead_times)
+    pac_res = multi_run(df_pac,lead_times)
+    return atl_res.append(pac_res)   
+
 def all_results(df,competitor):
     df['abs_err_'+competitor] = np.abs(df['vmax_'+competitor]-df[response])
     df['abs_err_hwrf']        = np.abs(df['vmax_hwrf']     -df[response])
@@ -282,6 +310,38 @@ def all_results(df,competitor):
                                     competitor+'_mae','difference','pct_diff'])
     return result
 
+def pred_importance(ft_list,model): #naive version
+    wt_list = model.get_weights()[0]
+    assert len(wt_list) == len(ft_list)
+    importance = []
+    for i in range(len(ft_list)):
+        importance.append((ft_list[i],np.abs(wt_list[i]).mean()))
+    return pd.DataFrame(importance
+                        ,columns=['predictor','mean_absolute_weight'])
+
+def garson(ft_list,model): #variable importance measure
+    weights   = model.get_weights()
+    input_wt  = weights[0]
+    hidden_wt = weights[2]
+    n_hidden = len(weights[0][0])
+    n_feat   = len(ft_list)
+    
+    contribution = np.empty((n_feat,n_hidden))
+    rel_contribution = np.empty((n_feat,n_hidden))
+    for hid in range(n_hidden):
+        for inp in range(n_feat): # contributions: products of weights
+            contribution[inp,hid] = np.abs(input_wt[inp,hid]*hidden_wt[hid,0])
+        for inp in range(n_feat): # contributions made relative
+            outgoing_signal = np.sum(contribution[:,hid])
+            rel_contribution[inp,hid] = contribution[inp,hid]/outgoing_signal
+    
+    overall_contribution = np.empty(n_feat)
+    for inp in range(n_feat): # total contribution
+        overall_contribution[inp] = np.sum(rel_contribution[inp,:])
+    pct_contribution = overall_contribution/sum(overall_contribution)
+    res = pd.DataFrame(pct_contribution,index=ft_list,columns=['rel_import'])
+    return res.sort_values('rel_import',ascending=False)
+    
 def sum_results(df,competitor,plot_sub=''):
     all_res = all_results(df,competitor)
     sum_res = all_res[all_res.index=='all']
@@ -316,8 +376,16 @@ nn_model.save_weights(wk_dir+'nn_initial_weights.h5')
 #hf = single_run(hf)
 
 hf = multi_run(hf,lead_times)
+#hf = compare_basins(hf,lead_times)
 print_settings()
-res=sum_results(hf,competitor,plot_subti)
+
+res=sum_results(hf,competitor,'')
+
+gar = garson(ft_ready+ft_to_norm+ft_to_imp+base_vars,nn_model)
+gar
+
+#res=sum_results(hf[hf.dataset=='atlantic'].copy(),competitor,'combined model, atl. performance')
+#res2=sum_results(hf[hf.dataset=='east_pacific'].copy(),competitor,'combined model, pac. performance')
 
 #res.to_csv(path_or_buf=wk_dir+'1_model_preds_combined.csv',index=False)
 #hf.to_csv(path_or_buf=wk_dir+'1_model_preds.csv',index=True) 
