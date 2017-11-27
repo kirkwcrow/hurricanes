@@ -38,7 +38,7 @@ def create_model(p):
     model.add(Dense(1300, input_dim=p, kernel_initializer='normal'
                     ,activity_regularizer=regularizers.l1(0.001)
                     ,activation='sigmoid'))
-#    model.add(Dense(30, kernel_initializer='normal', activation='relu'))
+#    model.add(Dense(30, kernel_initializer='normal',activation='relu'))
     model.add(Dense(1, kernel_initializer='normal'
                     ,activity_regularizer=regularizers.l1(0.001)
                     ,activation='linear'))
@@ -130,7 +130,7 @@ def fit_SLR_hwrf(df,response,test_pt):
             df.loc[df.partition != test_pt,response].values)
     return reg.predict(df['vmax_hwrf'].values.reshape(-1,1))
 
-def apply_NN_1pt(df,model,test_pt,features,response,e,b_size): 
+def apply_NN_1pt(df,model,test_pt,features,response,e,b_size):
     df_X1 = df.loc[df.partition!=test_pt,features]
     df_Y1 = df.loc[df.partition!=test_pt,response]
 
@@ -197,8 +197,8 @@ def bootstrap(df,n):
     res = []
     for i in range(n):
         df_bs = bsample(df,'storm_id')
-        df_bs=kfold_partition(df_bs,'storm_id',n_parts) 
-        mae = apply_model(df_bs,nn_model,ft_to_impute,ft_to_norm,ft_ready,
+        df_bs = kfold_partition(df_bs,'storm_id',n_parts) 
+        mae   = apply_model(df_bs,nn_model,ft_to_impute,ft_to_norm,ft_ready,
                       response,epochs,batch_size)
         res.append(mae)
     mae_est = np.mean(res)
@@ -209,6 +209,14 @@ def bootstrap(df,n):
           +'Mean: '+str(mae_est)
           +'\n95% CI: '+str(ci))
     return res
+
+# bootstrap across lead times
+def multi_bootstrap(df,n,lead_times):
+    res = []
+    for lt in lead_times:
+        res.append(bootstrap(df[df.lead_time == lt],n))
+    d=pd.DataFrame(np.column_stack(res),columns=lead_times)
+    return d
 
 def single_run(df):
     df = kfold_partition(df,'storm_id',n_parts)
@@ -266,6 +274,14 @@ def multi_run(df,lead_times):
         apply_model(tmp,nn_model,ft_to_impute,ft_to_norm,ft_ready,
                         response,epochs,batch_size)
         df_preds = df_preds.append(tmp)
+        
+        # garson variable importance algorithm
+        if lt == lead_times[0]:
+            gar = garson(ft_to_norm+ft_to_impute+ft_ready,nn_model,0)
+        else:
+            gar = gar+garson(ft_to_norm+ft_to_impute+ft_ready,nn_model,0)
+    gar_n=gar.sort_values('rel_import',ascending=False)/len(lead_times)
+    gar_n.to_csv(path_or_buf=wk_dir+'garson_importance.csv',index=True)
     return df_preds
 
 def compare_basins(df,lead_times):
@@ -319,7 +335,7 @@ def pred_importance(ft_list,model): #naive version
     return pd.DataFrame(importance
                         ,columns=['predictor','mean_absolute_weight'])
 
-def garson(ft_list,model): #variable importance measure
+def garson(ft_list,model,order=True): #variable importance measure
     weights   = model.get_weights()
     input_wt  = weights[0]
     hidden_wt = weights[2]
@@ -331,8 +347,10 @@ def garson(ft_list,model): #variable importance measure
     for hid in range(n_hidden):
         for inp in range(n_feat): # contributions: products of weights
             contribution[inp,hid] = np.abs(input_wt[inp,hid]*hidden_wt[hid,0])
-        for inp in range(n_feat): # contributions made relative
-            outgoing_signal = np.sum(contribution[:,hid])
+        
+        # contributions made relative
+        outgoing_signal = np.sum(contribution[:,hid])
+        for inp in range(n_feat): 
             rel_contribution[inp,hid] = contribution[inp,hid]/outgoing_signal
     
     overall_contribution = np.empty(n_feat)
@@ -340,7 +358,8 @@ def garson(ft_list,model): #variable importance measure
         overall_contribution[inp] = np.sum(rel_contribution[inp,:])
     pct_contribution = overall_contribution/sum(overall_contribution)
     res = pd.DataFrame(pct_contribution,index=ft_list,columns=['rel_import'])
-    return res.sort_values('rel_import',ascending=False)
+    if order: res.sort_values('rel_import',ascending=False,inplace=True)
+    return res
     
 def sum_results(df,competitor,plot_sub=''):
     all_res = all_results(df,competitor)
@@ -351,12 +370,63 @@ def sum_results(df,competitor,plot_sub=''):
             ,ylim=0,title='Model MAE by lead time\n'+plot_sub)
     return sum_res
 
+def feature_statistics(df,features,pctiles=[20,40,60,80]):
+    columns = []
+    for ft in features:
+        nonmiss = df.loc[df[ft]!=-9999,ft]
+        stat_list = list(np.percentile(nonmiss,pctiles))
+        stat_list = stat_list + [nonmiss.mean(),nonmiss.std()
+                                ,nonmiss.min(),nonmiss.max()]
+        columns.append(stat_list)
+    d=pd.DataFrame(columns,features,pctiles+['mean','std','min','max'])
+    for p in pctiles:
+        d[p] = (d[p]-d['mean'])/d['std'] # normalize
+    return d.transpose()
+
+def ft_name(name,dict_table): # gets name from dictionary, if it is there
+    dictionary = dict_table.to_dict()    
+    if name in dictionary.keys(): return dictionary[name]
+    else: return name 
+
+def contribution_plot(df,model,model_fts,plot_fts=[],pctiles=[20,40,60,80]):
+    if plot_fts == []: plot_fts = model_fts
+    df_st = feature_statistics(df,model_fts,pctiles)
+    for ft in plot_fts:
+        seq=np.linspace(df_st.loc[df_st.index=='min',ft]
+                       ,df_st.loc[df_st.index=='max',ft],20)
+        full_col = list(seq)*len(pctiles) # repeat values for each pctile
+        full_idx = sorted(pctiles*len(seq)) # populate index of repeated pct
+        df_var = pd.DataFrame(full_col,full_idx,columns=[ft])
+        df_all = df_var.merge(df_st,how='left',suffixes=('','_y')
+                              ,left_index=True,right_index=True)
+        del df_all[ft+'_y']
+        ft_mean = df_st.get_value('mean',ft)
+        ft_std  = df_st.get_value('std',ft)
+        df_all[ft] = (df_all[ft]-ft_mean)/ft_std
+        df_all = df_all[model_fts] # put features in original order
+        pred=model.predict(df_all.values)
+        df_var['vmax'] = pred
+        df_var.reset_index(inplace=True)
+        df_var=df_var.rename(columns={'index':'percentile'})
+        final = df_var.pivot(index=ft,columns='percentile',values='vmax')
+        ftname = ft_name(ft,names)
+        ax= final.plot(x=final.index,figsize=(7,5),title=
+                        ' Contribution Plot: '+ftname
+                       +'\nShows vmax by level of '
+                       + ft +', holding other terms constant')
+        ax.set_ylabel('vmax')
+    
 ### PREP ###
+names  = pd.read_csv(wk_dir+'pred_names.csv',index_col=0)['Name']
 np.random.seed(rand_seed)
-hf_raw = pd.read_csv(wk_dir+filename,index_col=0,parse_dates=['date']) 
+hf_raw = pd.read_csv(wk_dir+filename,index_col=0,parse_dates=['date'])
+
 hf=hf_raw[(hf_raw.vmax != -9999) & (hf_raw['vmax_'+competitor] != -9999) 
          &(hf_raw['vmax_op_t0'] != -9999)]
 hf=hf[hf.lead_time.isin(lead_times)]
+
+#hf['vmax_op_t0'] = np.random.uniform(0,1,len(hf)) #### how does this not tank variable importance???
+#hf['vmax_op_t0'] = hf['vmax']
 
 if lead_t_ind and len(lead_times) > 1:
     for lt in lead_times:
@@ -372,17 +442,16 @@ nn_model.save_weights(wk_dir+'nn_initial_weights.h5')
 
 ### EXECUTE ###
 
-#bootstrap_results = bootstrap(3)
+boot_res = multi_bootstrap(hf,100,lead_times)
+boot_res.to_csv(wk_dir+'bootstrap_results.csv',index=False)
 #hf = single_run(hf)
 
-hf = multi_run(hf,lead_times)
+#hf = multi_run(hf,lead_times)
+#print_settings()
+#res=sum_results(hf,competitor,'(single hidden layer)')
+
+#contribution_plot(hf,nn_model,ft_to_norm+ft_to_impute+ft_ready,[])
 #hf = compare_basins(hf,lead_times)
-print_settings()
-
-res=sum_results(hf,competitor,'')
-
-gar = garson(ft_ready+ft_to_norm+ft_to_imp+base_vars,nn_model)
-gar
 
 #res=sum_results(hf[hf.dataset=='atlantic'].copy(),competitor,'combined model, atl. performance')
 #res2=sum_results(hf[hf.dataset=='east_pacific'].copy(),competitor,'combined model, pac. performance')
