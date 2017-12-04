@@ -11,13 +11,14 @@ import datetime
 ### PROGRAM PARAMETERS ###
 wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2017_10_25\\"
 filename   = '0_clean_data.csv'
+file_gar   = '1_garson_importance.csv'
 plot_subti = 'shallow separate'
 print_work = 0
 rand_seed  = 46
 n_parts    = 10
 
 ### MODEL PARAMETERS ###
-ft_ready    = ['V6_x','V6_y','V8_x','V8_y','V6_y_miss','V8_y_miss','dataset_ind']  #  no processing
+ft_ready    = ['V6_x','V6_y','V8_x','V8_y','dataset_ind'] #'V6_y_miss','V8_y_miss'  #  no processing
 ft_to_norm  = ['vmax_op_t0']#,'vmax_pred_prev'] # normalize only
 ft_to_imp   = ['vmax_hwrf'] #,'vmax_op_t0'] # impute and normalize
 fit_resids  = 0
@@ -36,11 +37,11 @@ response    = 'vmax'
 def create_model(p):
     model = Sequential()
     model.add(Dense(1300, input_dim=p, kernel_initializer='normal'
-                    ,activity_regularizer=regularizers.l1(0.001)
+                    ,kernel_regularizer=regularizers.l1(0.001)
                     ,activation='sigmoid'))
 #    model.add(Dense(30, kernel_initializer='normal',activation='relu'))
     model.add(Dense(1, kernel_initializer='normal'
-                    ,activity_regularizer=regularizers.l1(0.001)
+                    ,kernel_regularizer=regularizers.l1(0.001)
                     ,activation='linear'))
     model.compile(loss=cost_fn, optimizer='adam')
     return model
@@ -276,13 +277,12 @@ def multi_run(df,lead_times):
         df_preds = df_preds.append(tmp)
         
         # garson variable importance algorithm
-        if lt == lead_times[0]:
-            gar = garson(ft_to_norm+ft_to_impute+ft_ready,nn_model,0)
-        else:
-            gar = gar+garson(ft_to_norm+ft_to_impute+ft_ready,nn_model,0)
-    gar_n=gar.sort_values('rel_import',ascending=False)/len(lead_times)
-    gar_n.to_csv(path_or_buf=wk_dir+'garson_importance.csv',index=True)
+        gar_update(file_gar,lt,ft_to_norm+ft_to_impute+ft_ready
+                   ,nn_model,lt==lead_times[0])
+#    gar_n=gar.sort_values('rel_import',ascending=False)/len(lead_times)
+#    gar_n.to_csv(path_or_buf=wk_dir+'garson_importance.csv',index=True)
     return df_preds
+
 
 def compare_basins(df,lead_times):
     print('input length: '+str(len(df)))
@@ -360,6 +360,16 @@ def garson(ft_list,model,order=True): #variable importance measure
     res = pd.DataFrame(pct_contribution,index=ft_list,columns=['rel_import'])
     if order: res.sort_values('rel_import',ascending=False,inplace=True)
     return res
+
+# reads and writes to garson importance file
+def gar_update(filename,column_name,features,model,is_first):
+    if is_first: # determines if should start new file or add to current
+        gar = garson(features,model,0)
+        gar.columns = [column_name]
+    else:
+        gar=pd.read_csv(wk_dir+filename,index_col=0)
+        gar[column_name]=garson(features,model,0)['rel_import']
+    gar.to_csv(wk_dir+filename,index=True)
     
 def sum_results(df,competitor,plot_sub=''):
     all_res = all_results(df,competitor)
@@ -442,19 +452,19 @@ nn_model.save_weights(wk_dir+'nn_initial_weights.h5')
 
 ### EXECUTE ###
 
-boot_res = multi_bootstrap(hf,100,lead_times)
-boot_res.to_csv(wk_dir+'bootstrap_results.csv',index=False)
+#boot_res = multi_bootstrap(hf,100,lead_times)
+#boot_res.to_csv(wk_dir+'1_bootstrap_results.csv',index=False)
 #hf = single_run(hf)
 
-#hf = multi_run(hf,lead_times)
-#print_settings()
-#res=sum_results(hf,competitor,'(single hidden layer)')
+hf = multi_run(hf,lead_times)
+print_settings()
+res=sum_results(hf,competitor,'(single hidden layer)')
 
-#contribution_plot(hf,nn_model,ft_to_norm+ft_to_impute+ft_ready,[])
+#contribution_plot(hf,nn_model,ft_to_norm+ft_to_impute+ft_ready,['vmax_hwrf','V9','V14','V36','dataset_ind','V17','V18','V19'])
 #hf = compare_basins(hf,lead_times)
 
 #res=sum_results(hf[hf.dataset=='atlantic'].copy(),competitor,'combined model, atl. performance')
 #res2=sum_results(hf[hf.dataset=='east_pacific'].copy(),competitor,'combined model, pac. performance')
 
-#res.to_csv(path_or_buf=wk_dir+'1_model_preds_combined.csv',index=False)
+res.to_csv(path_or_buf=wk_dir+'1_model_performance.csv',index=False)
 #hf.to_csv(path_or_buf=wk_dir+'1_model_preds.csv',index=True) 
