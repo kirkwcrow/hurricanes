@@ -1,9 +1,9 @@
 import pandas as pd
 import numpy as np
 
-wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2017_10_25\\"
-file_1     = 'atlantic_dataset_adecks.csv'
-file_2     = 'eastern_dataset_adecks.csv'
+wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2017_12_06\\"
+file_1     = 'atlantic_dataset_adecks_smooth.csv'
+file_2     = 'eastern_dataset_adecks_smooth.csv'
 
 col_names  = {'Unnamed: 0':'orig_id'
              ,'V61':'vmax_ivcn'
