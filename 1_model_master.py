@@ -336,26 +336,26 @@ def pred_importance(ft_list,model): #naive version
                         ,columns=['predictor','mean_absolute_weight'])
 
 def garson(ft_list,model,order=True): #variable importance measure
-    weights   = model.get_weights()
-    input_wt  = weights[0]
-    hidden_wt = weights[2]
+    weights   = model.get_weights() # [0] layer 1 weight matrix ... [3] layer 2 bias
+    input_wt  = weights[0] # shape: p x n_hidden
+    hidden_wt = weights[2] # shape: n_hidden x 1
     n_hidden = len(weights[0][0])
     n_feat   = len(ft_list)
     
     contribution = np.empty((n_feat,n_hidden))
-    rel_contribution = np.empty((n_feat,n_hidden))
+#    rel_contribution = np.empty((n_feat,n_hidden))
     for hid in range(n_hidden):
         for inp in range(n_feat): # contributions: products of weights
             contribution[inp,hid] = np.abs(input_wt[inp,hid]*hidden_wt[hid,0])
         
-        # contributions made relative
-        outgoing_signal = np.sum(contribution[:,hid])
-        for inp in range(n_feat): 
-            rel_contribution[inp,hid] = contribution[inp,hid]/outgoing_signal
+#        # contributions made relative
+#        outgoing_signal = np.sum(contribution[:,hid])
+#        for inp in range(n_feat): 
+#            rel_contribution[inp,hid] = contribution[inp,hid]/outgoing_signal
     
     overall_contribution = np.empty(n_feat)
     for inp in range(n_feat): # total contribution
-        overall_contribution[inp] = np.sum(rel_contribution[inp,:])
+        overall_contribution[inp] = np.sum(contribution[inp,:])
     pct_contribution = overall_contribution/sum(overall_contribution)
     res = pd.DataFrame(pct_contribution,index=ft_list,columns=['rel_import'])
     if order: res.sort_values('rel_import',ascending=False,inplace=True)
