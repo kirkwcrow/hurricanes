@@ -26,7 +26,7 @@ init_vals   = 0
 miss_ind    = 0
 impute      = 0
 lead_t_ind  = 0
-lead_times  = [3*(x+1) for x in range(16)]
+lead_times  = [3*(x+1) for x in range(24)]
 epochs      = 40
 batch_size  = 30
 cost_fn     = 'mean_squared_error'
@@ -457,6 +457,10 @@ nn_model.save_weights(wk_dir+'nn_initial_weights.h5')
 #hf = single_run(hf)
 
 hf = multi_run(hf,lead_times)
+
+#hf = sequential_test(hf,nn_model,hf[hf.date < 2016, ft_to_])
+
+
 #print_settings()
 #res=sum_results(hf,competitor,'(smoothed predictors,single hidden layer)')
 
@@ -467,4 +471,4 @@ hf = multi_run(hf,lead_times)
 #res2=sum_results(hf[hf.dataset=='east_pacific'].copy(),competitor,'combined model, pac. performance')
 
 #res.to_csv(path_or_buf=wk_dir+'1_model_performance.csv',index=False)
-#hf.to_csv(path_or_buf=wk_dir+'1_model_preds.csv',index=True) 
+hf.to_csv(path_or_buf=wk_dir+'1_model_preds.csv',index=True) 

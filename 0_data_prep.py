@@ -1,9 +1,11 @@
 import pandas as pd
 import numpy as np
 
-wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2017_12_06\\"
+wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2018_03_17\\"
 file_1     = 'atlantic_dataset_adecks_smooth.csv'
+file_1_17  = 'atlantic_dataset_adecks_smooth_2017_realtime.csv'
 file_2     = 'eastern_dataset_adecks_smooth.csv'
+file_2_17  = 'eastern_dataset_adecks_smooth_2017_realtime.csv.csv'
 
 col_names  = {'Unnamed: 0':'orig_id'
              ,'V61':'vmax_ivcn'
@@ -32,7 +34,9 @@ def single_import(filepath,dataset_label,id_num):
     tmp = pd.read_csv(filepath,dtype={'Unnamed: 0':'int','V68':'int'})
     del tmp['V54']
     tmp.V66 = pd.to_datetime(tmp.V66.astype(str),format='%Y%m%d%H')    
-    tmp['storm_id'] = tmp.V68 * 10 + id_num # unique storm id 
+    tmp['storm_id'] = tmp.V66.apply(lambda x: x.year) + (
+                        tmp.V68 * 10 + id_num)*10000 # unique storm id 
+    
     tmp['dataset'] = dataset_label
     tmp['dataset_ind'] = id_num
     tmp['land_t'] = tmp.V62.apply(cube_scaler)
@@ -76,8 +80,12 @@ def single_import(filepath,dataset_label,id_num):
     tmp = tmp [col_order+[var for var in list(tmp) if var not in col_order]]
     return tmp
 
-atl = single_import(wk_dir+file_1,'atlantic',0)
-pac = single_import(wk_dir+file_2,'east_pacific',1)
+atl    = single_import(wk_dir+file_1,'atlantic',0)
+atl_17 = single_import(wk_dir+file_1_17,'atlantic',0)
+pac    = single_import(wk_dir+file_2,'east_pacific',1)
+pac_17 = single_import(wk_dir+file_1_17,'atlantic',0)
 df = atl.append(pac,ignore_index = True)
+df = df.append(atl_17,ignore_index = True)
+df = df.append(pac_17,ignore_index = True)
 
 df.to_csv(path_or_buf=wk_dir+'0_clean_data.csv',index=True)
