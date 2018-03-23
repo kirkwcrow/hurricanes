@@ -5,7 +5,7 @@ wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2018_03_17\\"
 file_1     = 'atlantic_dataset_adecks_smooth.csv'
 file_1_17  = 'atlantic_dataset_adecks_smooth_2017_realtime.csv'
 file_2     = 'eastern_dataset_adecks_smooth.csv'
-file_2_17  = 'eastern_dataset_adecks_smooth_2017_realtime.csv.csv'
+file_2_17  = 'eastern_dataset_adecks_smooth_2017_realtime.csv'
 
 col_names  = {'Unnamed: 0':'orig_id'
              ,'V61':'vmax_ivcn'
@@ -83,9 +83,9 @@ def single_import(filepath,dataset_label,id_num):
 atl    = single_import(wk_dir+file_1,'atlantic',0)
 atl_17 = single_import(wk_dir+file_1_17,'atlantic',0)
 pac    = single_import(wk_dir+file_2,'east_pacific',1)
-pac_17 = single_import(wk_dir+file_1_17,'atlantic',0)
+pac_17 = single_import(wk_dir+file_2_17,'east_pacific',1)
 df = atl.append(pac,ignore_index = True)
 df = df.append(atl_17,ignore_index = True)
 df = df.append(pac_17,ignore_index = True)
 
-df.to_csv(path_or_buf=wk_dir+'0_clean_data.csv',index=True)
+#df.to_csv(path_or_buf=wk_dir+'0_clean_data.csv',index=True)
