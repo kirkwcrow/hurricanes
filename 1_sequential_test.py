@@ -10,7 +10,7 @@ wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2018_03_17\\"
 filename   = '0_clean_data.csv'
 file_gar   = '1_garson_importance.csv'
 plot_subti = 'shallow separate'
-print_work = 1
+print_work = 0
 rand_seed  = 466
 
 ### MODEL PARAMETERS ###
@@ -41,12 +41,12 @@ def normalizer(df,training_obs,feature_list):
         train_data  = df.loc[(df[ft]!=-9999) & training_obs,ft]
         df[ft+'_n'] = ( ((df[ft]-train_data.mean())/train_data.std())*
                         (df[ft] != -9999).astype(int) ) # norm. non-missing  
-
+    
 # runs a full training iteration
 def full_train(df,model,train_obs,features,response,refit = True):
+    if refit: model.load_weights(wk_dir+'nn_initial_weights.h5')
     df_X1 = df.loc[train_obs,features]
     df_Y1 = df.loc[train_obs,response]
-    if refit: model.load_weights(wk_dir+'nn_initial_weights.h5')
     model.fit(df_X1.values,df_Y1.values,epochs=epochs,batch_size=batch_size
               ,verbose=print_work)
 
@@ -89,8 +89,8 @@ def sequential_test(df,model,ft_to_norm,ft_ready,response):
         df_X1 = df.loc[df.train_order == i+1,features]
         df.loc[df.train_order == i+1,'vmax_pred_seq'] = (
                 model.predict(df_X1.values,batch_size=batch_size))
-        
-        
+    return df.loc[df.train_order > 0,'vmax_pred_seq']
+
 ### PREPARATION ###
 np.random.seed(rand_seed)
 hf_raw = pd.read_csv(wk_dir+filename,index_col=0,parse_dates=['date'])
@@ -107,21 +107,19 @@ nn_model = create_model(p)
 nn_model.save_weights(wk_dir+'nn_initial_weights.h5')
 
 ### EXECUTE ###
-hf = hf[hf.lead_time == 3]
-train_seq = training_seq(hf,k=3)
+train_seq = training_seq(hf,k=1)
 hf = hf.merge(train_seq,'left',left_on='storm_id'
               ,right_index=True)
-sequential_test(hf,nn_model,ft_to_norm_all,ft_ready,'vmax') 
 
+for l in lead_times:
+    print('Lead time: '+str(l))
+    pred =sequential_test(hf[hf.lead_time==l].copy(),nn_model
+                    ,ft_to_norm_all,ft_ready,'vmax') 
+    hf.loc[(hf.lead_time==l) & (hf.train_order > 0),'vmax_pred_seq']=pred
 
+out=hf.loc[(hf.train_order > 0),list(hf)[0:12]+['train_order','vmax_pred_seq']]
 
-
-
-
-
-
-
-
+out.to_csv(path_or_buf=wk_dir+'1_seq_predictions.csv',index=True)
 
 
 
