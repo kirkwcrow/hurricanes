@@ -3,10 +3,11 @@ import pandas as pd
 from scipy.stats import t
 
 ### PROGRAM PARAMETERS ###
-wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2017_12_06\\"
+wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2018_03_17\\"
 file_perf  = '1_model_performance.csv'
 file_gars  = '1_garson_importance.csv'
 file_boot  = '1_bootstrap_results.csv'
+file_seq   = '1_seq_predictions.csv'
 pred_names = 'pred_names.csv'
 
 ### MODEL PARAMETERS ###
@@ -21,35 +22,45 @@ pretty_models = {'nhc_mae':'NHC','val_mae':'Neural net','hwrf_mae':'HWRF'}
 #lead_times  = [3*(x+1) for x in range(16)]
 
 ### EXECUTE ###
-var_names = pd.read_csv(wk_dir+pred_names,index_col=0).to_dict()['Name']
+#var_names = pd.read_csv(wk_dir+pred_names,index_col=0).to_dict()['Name']
+#
+#results = pd.read_csv(wk_dir+file_perf)
+#ax1 = results.rename(columns=pretty_models).plot(x=['lead_time']
+#            ,y=list(pretty_models.values())
+#            ,figsize=(6.5,5)
+#            ,ylim=0)
+#ax1.set_ylabel('Mean absolute error (knots)')
+#ax1.set_xlabel('Lead time (hours)')
+#
+##garson variable importance
+#gar=pd.read_csv(wk_dir+file_gars,index_col=0)
+#gar['max']=gar.max(axis=1)
+#gar.sort_values(by='max',ascending=False,inplace=True)
+#del gar['max']
+#gar=gar.transpose()
+#to_plot = gar.iloc[:,0:5].copy()
+#to_plot.rename(columns = var_names,inplace=True)
+#ax=to_plot.plot(ylim=0,figsize=(6.5,5))
+#ax.set_ylabel('Garson variable importance')
+#ax.set_xlabel('Lead time (hours)')
+#
+#gar_out = gar.transpose()
 
+# sequential tests
+seq = pd.read_csv(wk_dir+file_seq,index_col=0)
 
-results = pd.read_csv(wk_dir+file_perf)
-ax1 = results.rename(columns=pretty_models).plot(x=['lead_time']
-            ,y=list(pretty_models.values())
-            ,figsize=(6.5,5)
-            ,ylim=0)
-ax1.set_ylabel('Mean absolute error (knots)')
-ax1.set_xlabel('Lead time (hours)')
+def seq_results(df,err_type='MAE'):
+    for var in ['nhc','pred_seq','hwrf']:
+        df[var+'_diff']=np.abs(df['vmax_'+var]-df.vmax)
+        if err_type == 'MSE': df[var+'_diff']=df[var+'_diff']**2
+    perf_leadtime = seq.groupby('lead_time').agg('mean').iloc[:,-3:]
+    perf_leadtime.columns = ['NHC','Neural net','HWRF']
+    perf_leadtime.plot(title='2017 out of sample performance by lead time ('+
+                            err_type+')')
+    return perf_leadtime
 
-#garson variable importance
-gar=pd.read_csv(wk_dir+file_gars,index_col=0)
-gar['max']=gar.max(axis=1)
-gar.sort_values(by='max',ascending=False,inplace=True)
-del gar['max']
-gar=gar.transpose()
-to_plot = gar.iloc[:,0:5].copy()
-to_plot.rename(columns = var_names,inplace=True)
-ax=to_plot.plot(ylim=0
-    #,title='Garson variable importance by lead time'+
-    #                       '\n(top five predictors)'
-    ,figsize=(6.5,5))
-ax.set_ylabel('Garson variable importance')
-ax.set_xlabel('Lead time (hours)')
-
-gar_out = gar.transpose()
-
-
+seq_results(seq)
+seq_results(seq,'MSE')
 
 # bootstrap results
 

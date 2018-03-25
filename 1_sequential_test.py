@@ -8,8 +8,6 @@ from keras import regularizers
 ### PROGRAM PARAMETERS ###
 wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2018_03_17\\"
 filename   = '0_clean_data.csv'
-file_gar   = '1_garson_importance.csv'
-plot_subti = 'shallow separate'
 print_work = 0
 rand_seed  = 466
 
@@ -81,7 +79,7 @@ def sequential_test(df,model,ft_to_norm,ft_ready,response):
     features = ft_ready + [f+'_n' for f in ft_to_norm]
     
     for i in range(df.train_order.max()):
-        print('Training batch '+str(i)+'...')
+        print('Training batch '+str(i)+'...('+str(sum(df.train_order<=i))+')')
         # train on storms so far
         full_train(df,model,df.train_order <= i,features,response)
     
