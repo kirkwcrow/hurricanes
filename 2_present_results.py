@@ -60,7 +60,8 @@ def seq_results(df1,err_type='MAE',plot=True):
     perf_leadtime = df.groupby('lead_time').agg('mean').iloc[:,-3:]
     perf_leadtime.columns = ['NHC','Neural net','HWRF']
     if plot: 
-        perf_leadtime.plot(title=
+        perf_leadtime.plot(xlim=[df.lead_time.min()-1,df.lead_time.max()+1]
+            ,title=
             '2017 out of sample performance by lead time ('+err_type+')')
         
     return perf_leadtime
@@ -74,7 +75,6 @@ def seq_res_basin(df,err_type='MAE'):
 
     fig.suptitle('Model performance by basin ('+err_type+')')
 
-seq_results(seq)
 seq_results(seq,'MSE')
 seq_res_basin(seq)
 seq_res_basin(seq,'MSE')
@@ -82,21 +82,32 @@ seq_res_basin(seq,'MSE')
 # BOOTSTRAP SEQUENTIAL
 seq = pd.read_csv(wk_dir+file_seq,index_col=0)
 
-def pctile(q):
-    def agg_fn(series):
-        return(series.quantile(q))
-    agg_fn.__name__ = str(q) + ' quantile'
-    return(agg_fn)
+def bsample(df,by_id='none'):
+    if by_id == 'none':
+        return df.iloc[np.random.randint(0,len(df),size=len(df))]    
+    else:
+        groups=pd.DataFrame(data=df[by_id].unique(),columns=[by_id])
+        bootstr=groups.loc[np.random.randint(0,len(groups),size=len(groups))]
+        return df.merge(bootstr,'right',by_id)
 
-def bsample(df,by_id):
-    groups=pd.DataFrame(data=df[by_id].unique(),columns=[by_id])
-    bootstr=groups.loc[np.random.randint(0,len(groups),size=len(groups))]
-    return df.merge(bootstr,'right',by_id)
+def bootstrap_ci(df,k,quantiles,pred_var):
+    seq['abs_err'] = np.abs(seq.vmax-seq[pred_var])
+    for i in range(k):
+        tmp=bsample(seq,'storm_id')[['abs_err','lead_time']].groupby(
+                'lead_time').agg('mean')
+        if i == 0: mae = tmp
+        else: mae=mae.join(tmp,rsuffix=str(i))
+    ci = mae.quantile(quantiles,axis=1).transpose()
+    ci['margin'] = (ci.iloc[:,1]-ci.iloc[:,0])/2
+    return ci
 
-seq['abs_err'] = np.abs(seq['vmax_pred_seq']-seq.vmax)
-b_seq=bsample(seq,'storm_id')[['abs_err','lead_time']]
-ci = b_seq.groupby(['lead_time']).agg([pctile(0.05),pctile(0.95)])
+ci=bootstrap_ci(seq,100,[0.05,0.95],'vmax_pred_seq')
+a=seq_results(seq)
+diff=a['HWRF']-a['Neural net']
+plt.errorbar(ci.index,y=[0]*len(ci),yerr=ci.margin,fmt='none',elinewidth=1,ecolor='orange',capsize=3)
 
+ci2=bootstrap_ci(seq,100,[0.05,0.95],'vmax_hwrf')
+plt.errorbar(ci2.index,y=diff,yerr=ci2.margin,fmt='none',elinewidth=1,ecolor='green',capsize=3)
 
 #%%
 # BOOTSTRAP CROSS-VALIDATION
