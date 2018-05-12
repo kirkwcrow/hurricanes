@@ -9,7 +9,7 @@ from keras import regularizers
 import datetime
 
 ### PROGRAM PARAMETERS ###
-wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2017_12_06\\"
+wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2018_05_11\\"
 filename   = '0_clean_data.csv'
 file_gar   = '1_garson_importance.csv'
 plot_subti = 'shallow separate'

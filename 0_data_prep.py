@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2018_03_17\\"
+wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2018_05_11\\"
 file_1     = 'atlantic_dataset_adecks_smooth.csv'
 file_1_17  = 'atlantic_dataset_adecks_smooth_2017_realtime.csv'
 file_2     = 'eastern_dataset_adecks_smooth.csv'
