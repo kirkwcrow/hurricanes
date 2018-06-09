@@ -49,6 +49,46 @@ ax.set_xlabel('Lead time (hours)')
 gar_out = gar.transpose()
 
 #%%
+
+# SEQUENTIAL TEST RAPID INTENSIFICATION DETECTION
+threshold = 30
+seq = pd.read_csv(wk_dir+file_seq,index_col=0)
+
+# get vmax and vmax_op at t=0
+orig = pd.read_csv(wk_dir+'0_clean_data.csv',
+                   usecols=['storm_id','lead_time','date','vmax','vmax_op'])
+orig = orig[orig.lead_time == 0]
+del orig['lead_time']
+seq=seq.merge(orig,on=['storm_id','date'],how='left',suffixes=('','_t0'))
+
+gil = seq[seq.lead_time == 24].copy()
+gil['true_ri'] = (gil.vmax - gil.vmax_t0 > threshold).astype(int)
+model_skill = []
+models = ['nhc','hwrf','pred_seq']
+for m in models:
+    pred = m+'_ri' # for convenient reference
+    gil[pred] = (gil['vmax_'+m]-gil.vmax_op_t0 > threshold).astype(int)
+    
+    # components of Gilbert skill score
+    hits = ((gil[pred] == 1) & (gil['true_ri'] == 1)).sum()
+    miss = ((gil[pred] == 0) & (gil['true_ri'] == 1)).sum()
+    f_a  = ((gil[pred] == 1) & (gil['true_ri'] == 0)).sum()
+    total = len(gil)
+    hits_random = (hits+miss)*(hits+f_a)/total
+    print(hits_random)
+    
+    # compute score
+    skill = (hits-hits_random)/(hits+miss+f_a-hits_random)
+    model_skill.append((hits,miss,f_a,skill))
+
+gil_res = pd.DataFrame.from_records(model_skill,index=models
+                                    ,columns=['Hits',
+                                              'Misses',
+                                              'False alarms',
+                                              'Gilbert skill score'])
+
+
+#%%
 # SEQUENTIAL TEST RESULTS
 seq = pd.read_csv(wk_dir+file_seq,index_col=0)
 
