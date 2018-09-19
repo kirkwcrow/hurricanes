@@ -100,10 +100,11 @@ def seq_results(df1,err_type='MAE',plot=True):
     perf_leadtime = df.groupby('lead_time').agg('mean').iloc[:,-3:]
     perf_leadtime.columns = ['NHC','Neural net','HWRF']
     if plot: 
-        perf_leadtime.plot(xlim=[df.lead_time.min()-1,df.lead_time.max()+1]
-            ,title=
-            '2017 out of sample performance by lead time ('+err_type+')')
-        
+        ax=perf_leadtime.plot(xlim=[df.lead_time.min()-1,df.lead_time.max()+1])
+            #'2017 out of sample performance by lead time ('+err_type+')')
+        ax.set_ylabel('Mean absolute error (knots)')
+        ax.set_xlabel('Lead time (hours)')
+
     return perf_leadtime
 
 def seq_res_basin(df,err_type='MAE'):
@@ -130,24 +131,48 @@ def bsample(df,by_id='none'):
         bootstr=groups.loc[np.random.randint(0,len(groups),size=len(groups))]
         return df.merge(bootstr,'right',by_id)
 
-def bootstrap_ci(df,k,quantiles,pred_var):
-    seq['abs_err'] = np.abs(seq.vmax-seq[pred_var])
+for pred_var in ['pred_seq','hwrf']:
+    seq['abs_err_'+pred_var] = np.abs(seq.vmax-seq['vmax_'+pred_var])
+
+def bootstrap_ci(df,k,quantiles):
     for i in range(k):
-        tmp=bsample(seq,'storm_id')[['abs_err','lead_time']].groupby(
+        v_keep = ['abs_err_hwrf','abs_err_pred_seq','lead_time']
+        tmp=bsample(seq,'storm_id')[v_keep].groupby(
                 'lead_time').agg('mean')
+        tmp['diff'] = tmp['abs_err_pred_seq'] - tmp['abs_err_hwrf']
         if i == 0: mae = tmp
-        else: mae=mae.join(tmp,rsuffix=str(i))
+        else: mae=mae.join(tmp['diff'],rsuffix=str(i))
     ci = mae.quantile(quantiles,axis=1).transpose()
     ci['margin'] = (ci.iloc[:,1]-ci.iloc[:,0])/2
+    print(ci.head())
     return ci
 
-ci=bootstrap_ci(seq,100,[0.05,0.95],'vmax_pred_seq')
+ci=bootstrap_ci(seq,100,[0.05,0.95])
 a=seq_results(seq)
-diff=a['HWRF']-a['Neural net']
-plt.errorbar(ci.index,y=[0]*len(ci),yerr=ci.margin,fmt='none',elinewidth=1,ecolor='orange',capsize=3)
+plt.errorbar(ci.index,y=ci[0.05]+ci['margin'],yerr=ci.margin,fmt='none',elinewidth=1,ecolor='black',capsize=3)
+plt.axhline(y=0,linewidth=1, color='gray',ls='--')
 
-ci2=bootstrap_ci(seq,100,[0.05,0.95],'vmax_hwrf')
-plt.errorbar(ci2.index,y=diff,yerr=ci2.margin,fmt='none',elinewidth=1,ecolor='green',capsize=3)
+#%% 
+# SHOW PREDICTIONS
+dv_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\"
+core_vars= ['storm_id','lead_time','date','vmax','vmax_nhc','vmax_pred_seq'
+              ,'vmax_hwrf']
+seq = pd.read_csv(wk_dir+file_seq,index_col=0,usecols=core_vars)
+seq.date = pd.to_datetime(seq.date,yearfirst=True)
+
+seq=seq[seq.lead_time == 24]
+start_t = seq.groupby('storm_id').agg({'date':'min'})
+seq = seq.join(start_t,rsuffix='_st')
+seq['t'] = (seq['date'] - seq['date_st']).apply(lambda x: x.total_seconds()/3600)
+
+for s_id in list(seq.index.unique()):
+    tmp = seq.loc[[s_id],['t']+core_vars[-4:]]
+    if len(tmp) > 10: 
+        ax=tmp.plot(x='t',title='24-hr predictions versus best-track VMAX'
+                    +'\n(storm '+str(s_id)+')')
+        ax.set_ylabel('Windspeed (knots)')
+        ax.set_xlabel('Time since '+str(start_t.at[s_id,'date'])+' (hours)')
+        plt.savefig(dv_dir+'Plots\\OOS_prediction_plots\\'+str(s_id)+'.png')
 
 #%%
 # BOOTSTRAP CROSS-VALIDATION

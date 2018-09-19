@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 ### PROGRAM PARAMETERS ###
-wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2017_10_25\\"
+wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2018_05_11\\"
 filename   = '0_clean_data.csv'
 core_vars  = ['storm_id','lead_time','date','vmax','vmax_ivcn','vmax_pred'
               ,'vmax_hwrf']
@@ -35,33 +35,16 @@ def dataset_compare(df,competitors):
               ,xticks=model_perf.lead_time.unique(),sharey=True,title='East Pacific')
     return model_perf.sort_values(['dataset','lead_time'])
 
-#df = pd.read_csv(wk_dir+filename,index_col=0,parse_dates=['date']) 
-#df.replace(-9999,value=np.NaN,inplace=True)
-#        
-#storm_curves_fix_date(df,storms_nonmiss,['op_t0'])
+df = pd.read_csv(wk_dir+filename,index_col=0,parse_dates=['date']) 
+df.replace(-9999,value=np.NaN,inplace=True)
+        
+storm_curves_fix_date(df,storms_nonmiss,['op_t0'])
 
-#df = pd.read_csv(wk_dir+'1_model_preds_separate.csv')
-#results = dataset_compare(df,['ivcn'])
+#%% Missing data
 
-## PERFORMANCE BY LEAD TIME
-sep_models = pd.read_csv(wk_dir+'1_model_preds_separate.csv',index_col=0)
-df_c  = pd.read_csv(wk_dir+'0_clean_data.csv',index_col=0)
-df_c = df_c[(df_c.vmax != -9999) & (df_c.vmax_ivcn != -9999) 
-    & (df_c.vmax_nhc != -9999) & df_c.lead_time.between(3,48)]
 
-cols = []
-competitors = ['nhc']
-for competitor in competitors:
-    df_c[competitor] = np.abs(df_c['vmax_'+competitor] - df_c.vmax)
-    cols = cols+[competitor]
+df = pd.read_csv(wk_dir+filename,index_col=0,parse_dates=['date']) 
+df.replace(-9999,value=np.NaN,inplace=True)
+df=df.loc[df.date < '2017-01-01','storm_id':'V62']
 
-model_perf = df_c.groupby(['lead_time'])[cols].agg('mean')
-model_perf=model_perf.merge(sep_models,how='left',left_index=True,
-                            right_index=True)
-model_perf.columns = competitors + ['nn_separate']
-fig = plt.figure()
-ax1 = fig.add_subplot(111)
-model_perf.plot(ax=ax1,ylim=0
-          ,xticks=[6*(x+.5) for x in range(8)]
-          ,title='Model MAE by lead time',figsize=(9,7))
-
+df=pd.DataFrame(columns=[df.isnull().mean(),df.isnull().count()]) 
