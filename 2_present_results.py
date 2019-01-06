@@ -87,6 +87,7 @@ gil_res = pd.DataFrame.from_records(model_skill,index=models
                                               'False alarms',
                                               'Gilbert skill score'])
 
+gil.to_csv(wk_dir+'2017_storm_preds_with_ri_detection.csv',index=False)
 
 #%%
 # SEQUENTIAL TEST RESULTS
