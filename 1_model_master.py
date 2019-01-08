@@ -9,7 +9,7 @@ from keras import regularizers
 import datetime
 
 ### PROGRAM PARAMETERS ###
-wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2018_05_11\\"
+wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2018_12_21\\"
 filename   = '0_clean_data.csv'
 file_gar   = '1_garson_importance.csv'
 plot_subti = 'shallow separate'
@@ -462,7 +462,7 @@ hf = multi_run(hf,lead_times)
 
 
 #print_settings()
-#res=sum_results(hf,competitor,'(smoothed predictors,single hidden layer)')
+res=sum_results(hf,competitor,'(smoothed predictors,single hidden layer)')
 
 #contribution_plot(hf,nn_model,ft_to_norm+ft_to_impute+ft_ready,['vmax_hwrf','V9','V14','V36','dataset_ind','V17','V18','V19'])
 #hf = compare_basins(hf,lead_times)
@@ -470,5 +470,5 @@ hf = multi_run(hf,lead_times)
 #res=sum_results(hf[hf.dataset=='atlantic'].copy(),competitor,'combined model, atl. performance')
 #res2=sum_results(hf[hf.dataset=='east_pacific'].copy(),competitor,'combined model, pac. performance')
 
-#res.to_csv(path_or_buf=wk_dir+'1_model_performance.csv',index=False)
+res.to_csv(path_or_buf=wk_dir+'1_model_performance.csv',index=False)
 hf.to_csv(path_or_buf=wk_dir+'1_model_preds.csv',index=True) 

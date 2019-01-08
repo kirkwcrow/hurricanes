@@ -6,7 +6,7 @@ from keras.layers import Input,Dense,Concatenate,Dropout
 from keras import regularizers
 
 ### PROGRAM PARAMETERS ###
-wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2018_05_11\\"
+wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2018_12_21\\"
 filename   = '0_clean_data.csv'
 print_work = 0
 rand_seed  = 466

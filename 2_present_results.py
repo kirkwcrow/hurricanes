@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import t
 
 ### PROGRAM PARAMETERS ###
-wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2018_05_11\\"
+wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2018_12_21\\"
 file_perf  = '1_model_performance.csv'
 file_gars  = '1_garson_importance.csv'
 file_boot  = '1_bootstrap_results.csv'

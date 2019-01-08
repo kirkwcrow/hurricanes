@@ -1,11 +1,11 @@
 import pandas as pd
 import numpy as np
 
-wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2018_05_11\\"
-file_1     = 'atlantic_dataset_adecks_smooth.csv'
-file_1_17  = 'atlantic_dataset_adecks_smooth_2017_realtime.csv'
-file_2     = 'eastern_dataset_adecks_smooth.csv'
-file_2_17  = 'eastern_dataset_adecks_smooth_2017_realtime.csv'
+wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2018_12_21\\"
+file_1     = 'atlantic.csv'
+file_1_17  = 'atlantic_2017.csv'
+file_2     = 'eastern.csv'
+file_2_17  = 'eastern_2017.csv'
 
 col_names  = {'Unnamed: 0':'orig_id'
              ,'V61':'vmax_ivcn'
@@ -16,11 +16,17 @@ col_names  = {'Unnamed: 0':'orig_id'
              ,'V67':'lead_time'
              ,'V68':'orig_storm_id'
              ,'V69':'vmax_op'
-             ,'V70':'vmax'}
+             ,'V70':'vmax_navy'
+             ,'V71':'vmax_hcca'
+             ,'V72':'vmax_hmon'
+             ,'V73':'vmax_hwrf_interpolated'
+             ,'V74':'vmax'
+             ,'V75':'vmax_old'} # need to finish
 
 col_order  = ['storm_id','lead_time','date','vmax','vmax_op',
               'vmax_nhc','vmax_ivcn','vmax_hwrf','orig_storm_id','dataset'
               ,'dataset_ind']
+
 
 def cube_scaler(x):
     if x == -9999:
@@ -87,5 +93,15 @@ pac_17 = single_import(wk_dir+file_2_17,'east_pacific',1)
 df = atl.append(pac,ignore_index = True)
 df = df.append(atl_17,ignore_index = True)
 df = df.append(pac_17,ignore_index = True)
+
+## RE-INDEX TO MATCH OPERATIONAL PERFORMANCE
+response = df.loc[df.lead_time==0,['storm_id','date',
+               'vmax', 'vmax_nhc','vmax_ivcn']]
+df['merge_date'] = df['date']+pd.Timedelta(6,unit='h')
+
+df = df.merge(response,how='inner',
+              left_on= ['storm_id','merge_date'],
+              right_on=['storm_id','date'],
+              suffixes=('_old',''))
 
 df.to_csv(path_or_buf=wk_dir+'0_clean_data.csv',index=True)
