@@ -14,7 +14,7 @@ rand_seed  = 466
 ### MODEL PARAMETERS ###
 ft_ready    = ['V6_x','V6_y','V8_x','V8_y','dataset_ind'] #'V6_y_miss','V8_y_miss'  #  no processing
 ft_to_norm  = ['vmax_op_t0','vmax_hwrf'] # normalize only
-lead_times  = [3*(x+1) for x in range(24)]
+lead_times  = [3*(x+2) for x in range(24)] # change to x+1 to get lead time 3
 epochs      = 40
 batch_size  = 30
 cost_fn     = 'mean_squared_error'

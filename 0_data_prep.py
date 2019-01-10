@@ -86,6 +86,7 @@ def single_import(filepath,dataset_label,id_num):
     tmp = tmp [col_order+[var for var in list(tmp) if var not in col_order]]
     return tmp
 
+
 atl    = single_import(wk_dir+file_1,'atlantic',0)
 atl_17 = single_import(wk_dir+file_1_17,'atlantic',0)
 pac    = single_import(wk_dir+file_2,'east_pacific',1)
@@ -94,14 +95,13 @@ df = atl.append(pac,ignore_index = True)
 df = df.append(atl_17,ignore_index = True)
 df = df.append(pac_17,ignore_index = True)
 
-## RE-INDEX TO MATCH OPERATIONAL PERFORMANCE
-response = df.loc[df.lead_time==0,['storm_id','date',
+#%% RE-INDEX TO MATCH OPERATIONAL PERFORMANCE
+response = df.loc[:,['storm_id','date','lead_time',
                'vmax', 'vmax_nhc','vmax_ivcn']]
-df['merge_date'] = df['date']+pd.Timedelta(6,unit='h')
+response['lead_time'] = response['lead_time']+6
+response['date'] = response['date']+pd.Timedelta(-6,unit='h')
 
-df = df.merge(response,how='inner',
-              left_on= ['storm_id','merge_date'],
-              right_on=['storm_id','date'],
+df = df.merge(response,how='inner',on=['lead_time','date','storm_id'],
               suffixes=('_old',''))
 
 df.to_csv(path_or_buf=wk_dir+'0_clean_data.csv',index=True)
