@@ -98,10 +98,12 @@ df = df.append(pac_17,ignore_index = True)
 #%% RE-INDEX TO MATCH OPERATIONAL PERFORMANCE
 response = df.loc[:,['storm_id','date','lead_time',
                'vmax', 'vmax_nhc','vmax_ivcn']]
-response['lead_time'] = response['lead_time']+6
-response['date'] = response['date']+pd.Timedelta(-6,unit='h')
+response['lead_time_reidx'] = response['lead_time']+6
+response['date_reidx'] = response['date']+pd.Timedelta(-6,unit='h')
 
-df = df.merge(response,how='inner',on=['lead_time','date','storm_id'],
-              suffixes=('_old',''))
+df = df.merge(response,how='inner'
+              ,left_on=['lead_time','date','storm_id']
+              ,right_on=['lead_time_reidx','date_reidx','storm_id']
+              ,suffixes=('_old',''))
 
 df.to_csv(path_or_buf=wk_dir+'0_clean_data.csv',index=True)

@@ -10,6 +10,19 @@ wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2018_12_21\\"
 filename   = '0_clean_data.csv'
 print_work = 0
 rand_seed  = 466
+var_to_keep = ['storm_id',
+ 'lead_time',
+ 'date',
+ 'vmax',
+ 'vmax_op',
+ 'vmax_nhc',
+ 'vmax_ivcn',
+ 'vmax_hwrf',
+ 'orig_storm_id',
+ 'dataset',
+ 'dataset_ind',
+ 'orig_id']
+
 
 ### MODEL PARAMETERS ###
 ft_ready    = ['V6_x','V6_y','V8_x','V8_y','dataset_ind'] #'V6_y_miss','V8_y_miss'  #  no processing
@@ -115,7 +128,7 @@ for l in lead_times:
                     ,ft_to_norm_all,ft_ready,'vmax') 
     hf.loc[(hf.lead_time==l) & (hf.train_order > 0),'vmax_pred_seq']=pred
 
-out=hf.loc[(hf.train_order > 0),list(hf)[0:12]+['train_order','vmax_pred_seq']]
+out=hf.loc[(hf.train_order > 0),var_to_keep+['train_order','vmax_pred_seq']]
 
 out.to_csv(path_or_buf=wk_dir+'1_seq_predictions.csv',index=True)
 
