@@ -26,7 +26,7 @@ var_to_keep = ['storm_id',
 
 ### MODEL PARAMETERS ###
 ft_ready    = ['V6_x','V6_y','V8_x','V8_y','dataset_ind'] #'V6_y_miss','V8_y_miss'  #  no processing
-ft_to_norm  = ['vmax_op_t0','vmax_hwrf'] # normalize only
+ft_to_norm  = ['vmax_op_t0','vmax_hwrf_old'] # normalize only
 lead_times  = [3*(x+1) for x in range(24)]
 epochs      = 40
 batch_size  = 30

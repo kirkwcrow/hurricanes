@@ -20,7 +20,7 @@ n_parts    = 10
 ### MODEL PARAMETERS ###
 ft_ready    = ['V6_x','V6_y','V8_x','V8_y','dataset_ind'] #'V6_y_miss','V8_y_miss'  #  no processing
 ft_to_norm  = ['vmax_op_t0']#,'vmax_pred_prev'] # normalize only
-ft_to_imp   = ['vmax_hwrf'] #,'vmax_op_t0'] # impute and normalize
+ft_to_imp   = ['vmax_hwrf_old'] # impute and normalize; using OLD vmax now
 fit_resids  = 0
 init_vals   = 0
 miss_ind    = 0
@@ -462,7 +462,7 @@ hf = multi_run(hf,lead_times)
 
 
 #print_settings()
-res=sum_results(hf,competitor,'(smoothed predictors,single hidden layer)')
+res=sum_results(hf,competitor,'(re-indexed)')
 
 #contribution_plot(hf,nn_model,ft_to_norm+ft_to_impute+ft_ready,['vmax_hwrf','V9','V14','V36','dataset_ind','V17','V18','V19'])
 #hf = compare_basins(hf,lead_times)

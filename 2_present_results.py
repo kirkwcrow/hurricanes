@@ -103,7 +103,9 @@ def seq_results(df1,err_type='MAE',plot=True):
     if plot: 
         ax=perf_leadtime.plot(xlim=[df.lead_time.min()-1,df.lead_time.max()+1])
             #'2017 out of sample performance by lead time ('+err_type+')')
-        ax.set_ylabel('Mean absolute error (knots)')
+        y_lab = 'Mean absolute error (knots)'
+        if err_type == 'MSE': y_lab = 'Mean squared error (knots)'
+        ax.set_ylabel(y_lab)
         ax.set_xlabel('Lead time (hours)')
 
     return perf_leadtime
