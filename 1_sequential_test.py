@@ -46,6 +46,22 @@ def create_model(p):
     model.compile(loss=cost_fn, optimizer='adam')
     return model
 
+def create_model_relu(p): # RE ASSIGN MODEL
+    model  = Sequential()
+    l_size = 65
+    reg    = 0.5
+    model.add(Dense(l_size, input_dim=p, kernel_initializer='normal'
+                    ,kernel_regularizer=regularizers.l1(reg)
+                    ,activation='relu'))
+    model.add(Dense(l_size, input_dim=p, kernel_initializer='normal'
+                    ,kernel_regularizer=regularizers.l1(reg)
+                    ,activation='relu'))
+    model.add(Dense(1, kernel_initializer='normal'
+                    ,kernel_regularizer=regularizers.l1(reg)
+                    ,activation='linear'))
+    model.compile(loss=cost_fn, optimizer='adam')
+    return model
+
 # normalizes values based on training data
 def normalizer(df,training_obs,feature_list):
     for ft in feature_list:
