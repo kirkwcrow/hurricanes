@@ -21,7 +21,7 @@ n_parts    = 10
 pred_subset = [1,2,4,5,7,9,14,17,19,24,32,35,37,41,48]
 ft_ready    = ['V6_x','V6_y','V8_x','V8_y','dataset_ind'] #'V6_y_miss','V8_y_miss'  #  no processing
 ft_to_norm  = ['vmax_op_t0']#,'vmax_pred_prev'] # normalize only
-ft_to_imp   = ['vmax_hwrf_old'] # impute and normalize; using OLD vmax now
+ft_to_imp   = ['vmax_hwfi'] # impute and normalize; using OLD vmax now
 fit_resids  = 0
 init_vals   = 0
 miss_ind    = 0
@@ -498,5 +498,5 @@ res=sum_results(hf,['hwrf','hwfi','nhc'],'(re-indexed)')
 #res=sum_results(hf[hf.dataset=='atlantic'].copy(),competitor,'combined model, atl. performance')
 #res2=sum_results(hf[hf.dataset=='east_pacific'].copy(),competitor,'combined model, pac. performance')
 
-res.to_csv(path_or_buf=wk_dir+'1_model_performance.csv',index=False)
+res.to_csv(path_or_buf=wk_dir+'1_model_performance_hwfi.csv',index=False)
 hf.to_csv(path_or_buf=wk_dir+'1_model_preds.csv',index=True) 
