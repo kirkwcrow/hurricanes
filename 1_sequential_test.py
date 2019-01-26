@@ -18,6 +18,7 @@ var_to_keep = ['storm_id',
  'vmax_nhc',
  'vmax_ivcn',
  'vmax_hwrf',
+ 'vmax_hwfi',
  'orig_storm_id',
  'dataset',
  'dataset_ind',
@@ -26,7 +27,7 @@ var_to_keep = ['storm_id',
 
 ### MODEL PARAMETERS ###
 ft_ready    = ['V6_x','V6_y','V8_x','V8_y','dataset_ind'] #'V6_y_miss','V8_y_miss'  #  no processing
-ft_to_norm  = ['vmax_op_t0','vmax_hwrf_old'] # normalize only
+ft_to_norm  = ['vmax_op_t0','vmax_hwfi'] # normalize only
 lead_times  = [3*(x+1) for x in range(24)]
 epochs      = 40
 batch_size  = 30
@@ -122,8 +123,12 @@ def sequential_test(df,model,ft_to_norm,ft_ready,response):
 np.random.seed(rand_seed)
 hf_raw = pd.read_csv(wk_dir+filename,index_col=0,parse_dates=['date'])
 
-hf=hf_raw[(hf_raw.vmax != -9999) & (hf_raw['vmax_'+competitor] != -9999) 
-         &(hf_raw['vmax_op_t0'] != -9999)]
+hf=hf_raw[(hf_raw.vmax != -9999) 
+           & (hf_raw['vmax_op_t0'] != -9999)
+           & (hf_raw['vmax_hwrf'] != -9999)
+           & (hf_raw['vmax_hwfi'] != -9999)
+           & (hf_raw['vmax_'+competitor] != -9999)]
+hf=hf[hf.lead_time.isin(lead_times)]
 hf=hf.loc[hf.lead_time.isin(lead_times)]
 
 #last_var = 'V62'
@@ -150,7 +155,7 @@ for l in lead_times:
 
 out=hf.loc[(hf.train_order > 0),var_to_keep+['train_order','vmax_pred_seq']]
 
-out.to_csv(path_or_buf=wk_dir+'1_seq_predictions.csv',index=True)
+out.to_csv(path_or_buf=wk_dir+'1_seq_predictions_hwfi.csv',index=True)
 
 
 

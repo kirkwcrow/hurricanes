@@ -8,14 +8,10 @@ wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2018_12_21\\"
 file_perf  = '1_model_performance.csv'
 file_gars  = '1_garson_importance.csv'
 file_boot  = '1_bootstrap_results.csv'
-file_seq   = '1_seq_predictions.csv'
+file_seq   = '1_seq_predictions_hwfi.csv'
 pred_names = 'pred_names.csv'
 
 ### MODEL PARAMETERS ###
-ft_ready    = ['V6_x','V6_y','V8_x','V8_y','dataset_ind'] #'V6_y_miss','V8_y_miss'  #  no processing
-ft_to_norm  = ['vmax_op_t0']#,'vmax_pred_prev'] # normalize only
-ft_to_imp   = ['vmax_hwrf'] #,'vmax_op_t0'] # impute and normalize
-
 gar_preds   = ['vmax_hwrf','vmax_op_t0','V1'] #predictors to plot
 
 pretty_models = {'nhc_mae':'NHC','val_mae':'Neural net','hwrf_mae':'HWRF'}
@@ -95,11 +91,12 @@ seq = pd.read_csv(wk_dir+file_seq,index_col=0)
 
 def seq_results(df1,err_type='MAE',plot=True):
     df = df1.copy()
-    for var in ['nhc','pred_seq','hwrf']:
+    for var in ['nhc','pred_seq','hwrf','hwfi']:
         df[var+'_diff']=np.abs(df['vmax_'+var]-df.vmax)
         if err_type == 'MSE': df[var+'_diff']=df[var+'_diff']**2
-    perf_leadtime = df.groupby('lead_time').agg('mean').iloc[:,-3:]
-    perf_leadtime.columns = ['NHC','Neural net','HWRF']
+
+    perf_leadtime = df.groupby('lead_time').agg('mean').iloc[:,-4:] ## CAREFUL HERE: indexing by position
+    perf_leadtime.columns = ['NHC','Neural net','HWRF','HWFI']
     if plot: 
         ax=perf_leadtime.plot(xlim=[df.lead_time.min()-1,df.lead_time.max()+1])
             #'2017 out of sample performance by lead time ('+err_type+')')
