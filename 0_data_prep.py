@@ -19,7 +19,7 @@ col_names  = {'Unnamed: 0':'orig_id'
              ,'V70':'vmax_navy'
              ,'V71':'vmax_hcca'
              ,'V72':'vmax_hmon'
-             ,'V73':'vmax_hwrf_interpolated'
+             ,'V73':'vmax_hwfi'
              ,'V74':'vmax'
              ,'V75':'vmax_old'} # need to finish
 
@@ -96,7 +96,7 @@ df = df.append(atl_17,ignore_index = True)
 df = df.append(pac_17,ignore_index = True)
 
 #%% RE-INDEX TO MATCH OPERATIONAL PERFORMANCE
-response = df.loc[:,['storm_id','date','lead_time','vmax_hwrf',
+response = df.loc[:,['storm_id','date','lead_time','vmax_hwrf','vmax_hwfi',
                'vmax_op_t0','vmax', 'vmax_nhc','vmax_ivcn']].copy()
 response['lead_time_reidx'] = response['lead_time']+6
 response['date_reidx'] = response['date']+pd.Timedelta(-6,unit='h')

@@ -18,6 +18,7 @@ rand_seed  = 466
 n_parts    = 10
 
 ### MODEL PARAMETERS ###
+pred_subset = [1,2,4,5,7,9,14,17,19,24,32,35,37,41,48]
 ft_ready    = ['V6_x','V6_y','V8_x','V8_y','dataset_ind'] #'V6_y_miss','V8_y_miss'  #  no processing
 ft_to_norm  = ['vmax_op_t0']#,'vmax_pred_prev'] # normalize only
 ft_to_imp   = ['vmax_hwrf_old'] # impute and normalize; using OLD vmax now
@@ -302,6 +303,7 @@ def compare_split(df,field,values): ## update this to split dataset <-----------
 def all_results(df,competitor):
     df['abs_err_'+competitor] = np.abs(df['vmax_'+competitor]-df[response])
     df['abs_err_hwrf']        = np.abs(df['vmax_hwrf']     -df[response])
+    df['abs_err_hwfi']        = np.abs(df['vmax_hwfi']     -df[response])
     df['abs_err_pred']        = np.abs(df[response+'_pred']-df[response])
     res = []
     parts = list(range(df.partition.max()+1))+['all']
@@ -314,15 +316,39 @@ def all_results(df,competitor):
             test_storms = len(df[rows]['storm_id'].unique())
             val_mae  = df.loc[rows,'abs_err_pred'].mean()
             hwrf_mae = df.loc[rows,'abs_err_hwrf'].mean()
+            hwfi_mae = df.loc[rows,'abs_err_hwfi'].mean()
             comp_mae = df.loc[rows,'abs_err_'+competitor].mean()
-            res.append((n_obs,lt,test_storms,val_mae,hwrf_mae
+            res.append((n_obs,lt,test_storms,val_mae,hwrf_mae,hwfi_mae
                         ,comp_mae,val_mae-comp_mae,
                         (val_mae-comp_mae)/comp_mae))
     
     result = pd.DataFrame(res,index=parts*len(lead_times)
                           ,columns=['n','lead_time','n_storms','val_mae'
-                                    ,'hwrf_mae',
+                                    ,'hwrf_mae','hwfi_mae',
                                     competitor+'_mae','difference','pct_diff'])
+    return result
+
+def all_results(df,competitors): #### FIX???????????????????????????????????
+    models = competitors + ['pred']
+    for m in models:
+        df['abs_err_'+m] = np.abs(df['vmax_'+m]-df['vmax'])
+    res = []
+    parts = list(range(df.partition.max()+1))+['all']
+    lead_times = df.lead_time.unique()
+    for lt in lead_times:
+        for pt in parts:
+            if pt == 'all': rows = (df.partition > -1) & (df.lead_time == lt)
+            else:           rows = (df.partition == pt) & (df.lead_time == lt)
+            n_obs = rows.sum()
+            test_storms = len(df[rows]['storm_id'].unique())
+            mae_list_lt = []
+            for m in models:
+                mae = np.mean(df.loc[rows,'abs_err_'+m])
+                mae_list_lt.append(mae)
+            res.append([n_obs,lt,test_storms]+mae_list_lt)
+    
+    result = pd.DataFrame(res,index=parts*len(lead_times)
+                          ,columns=['n','lead_time','n_storms']+models)
     return result
 
 def pred_importance(ft_list,model): #naive version
@@ -375,7 +401,7 @@ def sum_results(df,competitor,plot_sub=''):
     sum_res = all_res[all_res.index=='all']
     print(sum_res)
     if len(df.lead_time.unique()) > 1:
-        sum_res.plot(x=['lead_time'],y=[competitor+'_mae','val_mae','hwrf_mae']
+        sum_res.plot(x=['lead_time'],y=competitor+['pred']
             ,ylim=0,title='Model MAE by lead time\n'+plot_sub)
     return sum_res
 
@@ -425,13 +451,16 @@ def contribution_plot(df,model,model_fts,plot_fts=[],pctiles=[20,40,60,80]):
                        + ft +', holding other terms constant')
         ax.set_ylabel('vmax')
     
-### PREP ###
+#%% PREP 
 names  = pd.read_csv(wk_dir+'pred_names.csv',index_col=0)['Name']
 np.random.seed(rand_seed)
 hf_raw = pd.read_csv(wk_dir+filename,index_col=0,parse_dates=['date'])
 
-hf=hf_raw[(hf_raw.vmax != -9999) & (hf_raw['vmax_'+competitor] != -9999) 
-         &(hf_raw['vmax_op_t0'] != -9999)]
+hf=hf_raw[(hf_raw.vmax != -9999) 
+           & (hf_raw['vmax_op_t0'] != -9999)
+           & (hf_raw['vmax_hwrf'] != -9999)
+           & (hf_raw['vmax_hwfi'] != -9999)
+           & (hf_raw['vmax_'+competitor] != -9999)]
 hf=hf[hf.lead_time.isin(lead_times)]
 
 #hf['vmax_op_t0'] = np.random.uniform(0,1,len(hf)) #### how does this not tank variable importance???
@@ -442,7 +471,7 @@ if lead_t_ind and len(lead_times) > 1:
         ft_ready = ft_ready + ['lead_time_'+str(lt)]
 
 last_var = 'V62'
-base_vars = list(hf.loc[1:2,'V1':last_var])
+base_vars = ['V'+str(v) for v in pred_subset] ##list(hf.loc[1:2,'V1':last_var])
 ft_to_impute = base_vars+ ft_to_imp + (
         init_vals*list(hf.loc[1:2,'V1_t0':last_var+'_t0']) )
 p = (1+miss_ind)*len(ft_to_impute)+len(ft_to_norm)+len(ft_ready)
@@ -461,7 +490,7 @@ hf = multi_run(hf,lead_times)
 
 
 #print_settings()
-res=sum_results(hf,competitor,'(re-indexed)')
+res=sum_results(hf,['hwrf','hwfi','nhc'],'(re-indexed)')
 
 #contribution_plot(hf,nn_model,ft_to_norm+ft_to_impute+ft_ready,['vmax_hwrf','V9','V14','V36','dataset_ind','V17','V18','V19'])
 #hf = compare_basins(hf,lead_times)

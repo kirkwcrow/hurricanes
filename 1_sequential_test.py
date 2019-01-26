@@ -126,8 +126,12 @@ hf=hf_raw[(hf_raw.vmax != -9999) & (hf_raw['vmax_'+competitor] != -9999)
          &(hf_raw['vmax_op_t0'] != -9999)]
 hf=hf.loc[hf.lead_time.isin(lead_times)]
 
-last_var = 'V62'
-base_vars = list(hf.loc[1:2,'V1':'V62'])
+#last_var = 'V62'
+#base_vars = list(hf.loc[1:2,'V1':'V62'])
+
+pred_subset = [1,2,4,5,7,9,14,17,19,24,32,35,37,41,48] ## SUBSET!!
+base_vars = ['V'+str(v) for v in pred_subset]
+
 ft_to_norm_all = ft_to_norm + base_vars
 p = len(ft_to_norm_all)+len(ft_ready)
 nn_model = create_model(p)
