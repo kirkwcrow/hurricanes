@@ -8,7 +8,7 @@ wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2018_12_21\\"
 file_perf  = '1_model_performance.csv'
 file_gars  = '1_garson_importance.csv'
 file_boot  = '1_bootstrap_results.csv'
-file_seq   = '1_seq_predictions_hwfi.csv'
+file_seq   = '1_seq_predictions.csv'
 pred_names = 'pred_names.csv'
 
 ### MODEL PARAMETERS ###
@@ -60,7 +60,7 @@ seq=seq.merge(orig,on=['storm_id','date'],how='left',suffixes=('','_t0'))
 gil = seq[seq.lead_time == 24].copy()
 gil['true_ri'] = (gil.vmax - gil.vmax_t0 > threshold).astype(int)
 model_skill = []
-models = ['nhc','hwrf','pred_seq']
+models = ['nhc','hwrf','pred_seq','hwfi']
 for m in models:
     pred = m+'_ri' # for convenient reference
     gil[pred] = (gil['vmax_'+m]-gil.vmax_op_t0 > threshold).astype(int)
@@ -121,7 +121,7 @@ seq_res_basin(seq)
 seq_res_basin(seq,'MSE')
 
 # BOOTSTRAP SEQUENTIAL
-seq = pd.read_csv(wk_dir+file_seq,index_col=0)
+#seq = pd.read_csv(wk_dir+file_seq,index_col=0)
 
 def bsample(df,by_id='none'):
     if by_id == 'none':
