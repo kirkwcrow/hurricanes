@@ -125,9 +125,9 @@ hf_raw = pd.read_csv(wk_dir+filename,index_col=0,parse_dates=['date'])
 
 hf=hf_raw[(hf_raw.vmax != -9999) 
            & (hf_raw['vmax_op_t0'] != -9999)
-           & (hf_raw['vmax_hwrf'] != -9999)
-           & (hf_raw['vmax_hwfi'] != -9999)
-           & (hf_raw['vmax_'+competitor] != -9999)]
+#           & (hf_raw['vmax_hwrf'] != -9999)
+           & (hf_raw['vmax_hwfi'] != -9999)]
+#           & (hf_raw['vmax_'+competitor] != -9999)]
 hf=hf[hf.lead_time.isin(lead_times)]
 hf=hf.loc[hf.lead_time.isin(lead_times)]
 
@@ -155,7 +155,7 @@ for l in lead_times:
 
 out=hf.loc[(hf.train_order > 0),var_to_keep+['train_order','vmax_pred_seq']]
 
-out.to_csv(path_or_buf=wk_dir+'1_seq_predictions.csv',index=True)
+out.to_csv(path_or_buf=wk_dir+'1_seq_predictions_more_preds.csv',index=True)
 
 
 

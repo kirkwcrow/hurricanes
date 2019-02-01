@@ -8,7 +8,7 @@ wk_dir     = "D:\\System\\Documents\\ACADEMIC\\HF\\Data\\2018_12_21\\"
 file_perf  = '1_model_performance.csv'
 file_gars  = '1_garson_importance.csv'
 file_boot  = '1_bootstrap_results.csv'
-file_seq   = '1_seq_predictions.csv'
+file_seq   = '1_seq_predictions_more_preds.csv'
 pred_names = 'pred_names.csv'
 
 ### MODEL PARAMETERS ###
