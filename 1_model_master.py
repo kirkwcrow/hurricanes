@@ -498,5 +498,5 @@ res=sum_results(hf,['hwrf','hwfi','nhc'],'(re-indexed)')
 #res=sum_results(hf[hf.dataset=='atlantic'].copy(),competitor,'combined model, atl. performance')
 #res2=sum_results(hf[hf.dataset=='east_pacific'].copy(),competitor,'combined model, pac. performance')
 
-res.to_csv(path_or_buf=wk_dir+'1_model_performance_hwfi.csv',index=False)
+#res.to_csv(path_or_buf=wk_dir+'1_model_performance_hwfi.csv',index=False) # need to check this before running
 hf.to_csv(path_or_buf=wk_dir+'1_model_preds.csv',index=True) 

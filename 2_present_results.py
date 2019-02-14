@@ -16,19 +16,30 @@ gar_preds   = ['vmax_hwfi','vmax_op_t0','V1'] # force plot these predictors
 
 pretty_models = {'nhc_mae':'NHC','val_mae':'Neural net','hwrf_mae':'HWRF'}
 
+def to_latex_2(df,index=False,round_vals=True):
+    """ Output that doesn't require TeX packages """
+    if round_vals:
+        lstr = np.round(df,3).to_latex(index=index)
+    else:
+        lstr = df.to_latex(index=index)
+        
+    for pattern in ['\\toprule','\\midrule','\\bottomrule']:
+        lstr = lstr.replace(pattern,'\hline')
+    print(lstr)
+
 #%%
 lead_times  = [3*(x+1) for x in range(16)]
 
 ### EXECUTE ###
 var_names = pd.read_csv(wk_dir+pred_names,index_col=0).to_dict()['Name']
-#
-#results = pd.read_csv(wk_dir+file_perf)
-#ax1 = results.rename(columns=pretty_models).plot(x=['lead_time']
-#            ,y=list(pretty_models.values())
-#            ,figsize=(6.5,5)
-#            ,ylim=0)
-#ax1.set_ylabel('Mean absolute error (knots)')
-#ax1.set_xlabel('Lead time (hours)')
+
+results = pd.read_csv(wk_dir+file_perf)
+ax1 = results.rename(columns=pretty_models).plot(x=['lead_time']
+            ,y=list(pretty_models.values())
+            ,figsize=(6.5,5)
+            ,ylim=0)
+ax1.set_ylabel('Mean absolute error (knots)')
+ax1.set_xlabel('Lead time (hours)')
 
 # GARSON VARIABLE IMPORTANCE
 gar=pd.read_csv(wk_dir+file_gars,index_col=0)
@@ -105,18 +116,27 @@ def seq_results(df1,err_type='MAE',pred='pred_seq',plot=True):
         df[var+'_diff']=np.abs(df['vmax_'+var]-df.vmax)
         if err_type == 'MSE': df[var+'_diff']=df[var+'_diff']**2
 
-    perf_leadtime = df.groupby('lead_time').agg('mean').iloc[:,-4:] ## CAREFUL HERE: indexing by position
+    perf_group = df.groupby('lead_time')
+    perf_leadtime = perf_group.agg('mean').iloc[:,-4:] ## CAREFUL HERE: indexing by position
+    
+    print(perf_leadtime.columns)
     perf_leadtime.columns = ['NHC','Neural net','HWRF','HWFI']
     if plot: 
         ax=perf_leadtime.plot(xlim=[df.lead_time.min()-1,df.lead_time.max()+1],
-                                    color=('c','C1','limegreen','darkgreen'),
-                                    lw=1.8)
+                                    color=('C0','C1','limegreen','darkgreen'),
+                                    lw=1.7)
             # https://matplotlib.org/users/dflt_style_changes.html
         y_lab = 'Mean absolute error (knots)'
         if err_type == 'MSE': y_lab = 'Mean squared error (knots)'
         ax.set_ylabel(y_lab)
         ax.set_xlabel('Lead time (hours)')
-
+    
+    perf_leadtime['N. Obs']    = perf_group.storm_id.count()    
+    perf_leadtime['N. Storms'] = perf_group.storm_id.nunique()    
+    
+    cols = list(perf_leadtime.columns)
+    cols = cols[-2:] + cols[:-2] # put sample sizes first
+    perf_leadtime = perf_leadtime[cols]
     return perf_leadtime
 
 def seq_res_basin(df,err_type='MAE'):
@@ -162,6 +182,7 @@ def bootstrap_ci(df,k,quantiles
 
 ci=bootstrap_ci(seq,100,[0.05,0.95],comp_err='abs_err_hwfi')
 a=seq_results(seq)
+
 plt.errorbar(ci.index,y=ci[0.05]+ci['margin'],yerr=ci.margin,fmt='none',elinewidth=1,ecolor='black',capsize=3)
 plt.axhline(y=0,linewidth=1, color='gray',ls='--')
 
@@ -171,6 +192,8 @@ ci = bootstrap_ci(cv,100,[0.05,0.95],pred_err='abs_err_pred',comp_err='abs_err_h
 a=seq_results(cv,pred='pred')
 plt.errorbar(ci.index,y=ci[0.05]+ci['margin'],yerr=ci.margin,fmt='none',elinewidth=1,ecolor='black',capsize=3)
 plt.axhline(y=0,linewidth=1, color='gray',ls='--')
+
+to_latex_2(a.reset_index())
 
 #%% 
 # SHOW PREDICTIONS
@@ -199,4 +222,4 @@ for s_id in list(seq.index.unique()):
 cv_res= np.round(pd.read_csv(wk_dir+file_perf),3)
 cv_res=cv_res.set_index('lead_time').reset_index()
 cv_res.columns = ['Lead time','N. Obs.','N. Storms','HWRF','HWFI','NHC','Neural net']
-print(cv_res.to_latex(index=False).replace('\\toprule','\hline').replace('\\midrule','\hline').replace('\\bottomrule','\hline'))
+to_latex_2(cv_res)
